@@ -1,0 +1,16 @@
+{
+    "name": "Test",
+    "rootNamespace": "HKFeedbackV2.Test",
+    "references": [
+        "GUID:515d13180017a7b488d133f989193651"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
