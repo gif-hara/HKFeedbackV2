@@ -1,0 +1,25 @@
+{
+    "name": "com.gif-hara.hkfeedbackv2",
+    "displayName": "HK Feedback V2",
+    "author": {
+        "name": "gif-hara",
+        "url": "https://github.com/gif-hara"
+    },
+    "version": "0.0.1",
+    "unity": "6000.3",
+    "description": "A feedback system for Unity.",
+    "keywords": [
+        "FeedbackV2"
+    ],
+    "license": "MIT",
+    "dependencies": {},
+    "documentationUrl": "https://github.com/gif-hara/HKFeedbackV2",
+    "licensesUrl": "https://github.com/gif-hara/HKFeedbackV2/blob/main/LICENSE",
+    "samples": [
+        {
+            "displayName": "Get Started",
+            "description": "",
+            "path": "Samples~/GetStarted"
+        }
+    ]
+}
