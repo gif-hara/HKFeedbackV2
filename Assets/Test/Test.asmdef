@@ -2,7 +2,9 @@
     "name": "Test",
     "rootNamespace": "HKFeedbackV2.Test",
     "references": [
-        "GUID:515d13180017a7b488d133f989193651"
+        "GUID:515d13180017a7b488d133f989193651",
+        "GUID:49b49c76ee64f6b41bf28ef951cb0e50",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
