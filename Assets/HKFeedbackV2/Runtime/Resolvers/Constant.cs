@@ -13,5 +13,10 @@ namespace HKFeedbackV2.Resolvers
         {
             return value;
         }
+
+        public Constant(T value)
+        {
+            this.value = value;
+        }
     }
 }
