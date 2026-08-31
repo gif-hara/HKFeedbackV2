@@ -40,5 +40,29 @@ namespace HKFeedbackV2
 
             throw new InvalidOperationException($"Key {key.name} is not registered.");
         }
+
+        bool IContainerResolve.TryResolve<T>(out T value)
+        {
+            if (anonymousObjects.TryGetValue(typeof(T), out var obj))
+            {
+                value = (T)obj;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        bool IContainerResolve.TryResolve<T>(ContainerKey key, out T value)
+        {
+            if (keyedObjects.TryGetValue(key, out var obj))
+            {
+                value = (T)obj;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
     }
 }
