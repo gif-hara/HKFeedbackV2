@@ -4,7 +4,7 @@ using Cysharp.Threading.Tasks;
 using HKFeedbackV2.Resolvers;
 using UnityEngine;
 
-namespace HKFeedbackV2.Feedbacks
+namespace HKFeedbackV2.Actions
 {
     [Serializable]
     public sealed class SyncTransform : IAction
