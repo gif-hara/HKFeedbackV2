@@ -3,7 +3,7 @@ using Cysharp.Threading.Tasks;
 
 namespace HKFeedbackV2
 {
-    public interface IFeedback
+    public interface IAction
     {
         UniTask InvokeAsync(IContainer container, CancellationToken cancellationToken);
     }

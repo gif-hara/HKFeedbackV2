@@ -7,7 +7,7 @@ using UnityEngine;
 namespace HKFeedbackV2.Feedbacks
 {
     [Serializable]
-    public sealed class SetActiveGameObject : IFeedback
+    public sealed class SetActiveGameObject : IAction
     {
         [SerializeReference, SubclassSelector]
         private IResolver<GameObject> gameObject;

@@ -7,7 +7,7 @@ using UnityEngine;
 namespace HKFeedbackV2.Feedbacks
 {
     [Serializable]
-    public abstract class AsyncFeedback : IFeedback
+    public abstract class AsyncFeedback : IAction
     {
         [SerializeReference, SubclassSelector]
         private IResolver<bool> forget = new Constant<bool>(true);

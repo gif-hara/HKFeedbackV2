@@ -7,7 +7,7 @@ using UnityEngine;
 namespace HKFeedbackV2.Feedbacks
 {
     [Serializable]
-    public sealed class SyncTransform : IFeedback
+    public sealed class SyncTransform : IAction
     {
         [SerializeReference, SubclassSelector]
         private IResolver<Transform> transform;

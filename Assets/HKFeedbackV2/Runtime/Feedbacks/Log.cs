@@ -6,7 +6,7 @@ using UnityEngine;
 namespace HKFeedbackV2.Feedbacks
 {
     [Serializable]
-    public sealed class Log : IFeedback
+    public sealed class Log : IAction
     {
         [SerializeReference, SubclassSelector]
         private IResolver<string> message;

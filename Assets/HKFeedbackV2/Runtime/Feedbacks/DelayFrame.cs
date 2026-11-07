@@ -7,7 +7,7 @@ using UnityEngine;
 namespace HKFeedbackV2.Feedbacks
 {
     [Serializable]
-    public sealed class DelayFrame : IFeedback
+    public sealed class DelayFrame : IAction
     {
         [SerializeReference, SubclassSelector]
         private IResolver<int> frames = new Constant<int>(0);

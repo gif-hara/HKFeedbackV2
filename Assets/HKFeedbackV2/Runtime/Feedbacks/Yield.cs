@@ -7,7 +7,7 @@ using UnityEngine;
 namespace HKFeedbackV2.Feedbacks
 {
     [Serializable]
-    public sealed class Yield : IFeedback
+    public sealed class Yield : IAction
     {
         [SerializeReference, SubclassSelector]
         private IResolver<PlayerLoopTiming> playerLoopTiming = new Constant<PlayerLoopTiming>(PlayerLoopTiming.Update);

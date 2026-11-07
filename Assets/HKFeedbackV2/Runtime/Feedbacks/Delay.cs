@@ -7,7 +7,7 @@ using UnityEngine;
 namespace HKFeedbackV2.Feedbacks
 {
     [Serializable]
-    public sealed class Delay : IFeedback
+    public sealed class Delay : IAction
     {
         [SerializeReference, SubclassSelector]
         private IResolver<float> seconds = new Constant<float>(0.0f);
