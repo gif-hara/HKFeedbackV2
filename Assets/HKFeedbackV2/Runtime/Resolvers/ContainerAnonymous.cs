@@ -13,12 +13,12 @@ namespace HKFeedbackV2.Resolvers
         {
             if (canBeNull.Resolve(container))
             {
-                container.TryResolve<T>(out var value);
+                container.TryResolve<T>(ContainerKey.Anonymous, out var value);
                 return value;
             }
             else
             {
-                return container.Resolve<T>();
+                return container.Resolve<T>(ContainerKey.Anonymous);
             }
         }
 

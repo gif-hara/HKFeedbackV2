@@ -282,7 +282,7 @@ Light:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   m_Enabled: 1
-  serializedVersion: 12
+  serializedVersion: 13
   m_Type: 1
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_Intensity: 2
@@ -334,7 +334,7 @@ Light:
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
   m_ForceVisible: 0
-  m_ShadowRadius: 0
+  m_ShapeRadius: 0
   m_ShadowAngle: 0
   m_LightUnit: 1
   m_LuxAtDistance: 1
@@ -417,6 +417,9 @@ MonoBehaviour:
   blendDistance: 0
   weight: 1
   sharedProfile: {fileID: 11400000, guid: 10fc4df2da32a41aaa32d77bc913491c, type: 2}
+  m_SceneObjectReference:
+    m_OverrideState: 0
+    m_Value: {fileID: 0}
 --- !u!4 &832575519
 Transform:
   m_ObjectHideFlags: 0
@@ -441,7 +444,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 893668801}
-  - component: {fileID: 893668800}
+  - component: {fileID: 893668802}
   m_Layer: 0
   m_Name: Controller
   m_TagString: Untagged
@@ -449,37 +452,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &893668800
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 893668799}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 714de4bcfe1d58b4a8b7a4fa6be9140b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Test::HKFeedbackV2.Test.TestSceneController
-  feedbacks:
-  - rid: 9197946545641619532
-  references:
-    version: 2
-    RefIds:
-    - rid: 9197946545641619532
-      type: {class: SetActiveGameObject, ns: HKFeedbackV2.Feedbacks, asm: HKFeedbackV2}
-      data:
-        gameObject:
-          rid: 9197946545641619534
-        activeState:
-          rid: 9197946545641619533
-    - rid: 9197946545641619533
-      type: {class: 'Constant`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
-      data:
-        value: 0
-    - rid: 9197946545641619534
-      type: {class: FromTestSceneControllerAnonymous, ns: HKFeedbackV2.Test.Resolvers, asm: Test}
-      data: 
 --- !u!4 &893668801
 Transform:
   m_ObjectHideFlags: 0
@@ -495,6 +467,22 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &893668802
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 893668799}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 714de4bcfe1d58b4a8b7a4fa6be9140b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Test::HKFeedbackV2.Test.TestSceneController
+  feedbacks: []
+  references:
+    version: 2
+    RefIds: []
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

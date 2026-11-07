@@ -3,59 +3,51 @@ using System.Collections.Generic;
 
 namespace HKFeedbackV2
 {
-    internal sealed class Container : IContainer
+    public sealed class Container : IContainer
     {
-        private readonly Dictionary<Type, object> anonymousObjects = new();
+        private readonly Dictionary<Type, Dictionary<ContainerKey, object>> objects = new();
 
-        private readonly Dictionary<ContainerKey, object> keyedObjects = new();
-
-        IContainerRegister IContainerRegister.Register<T>(T obj)
+        public void Register(ContainerKey key, object obj)
         {
-            anonymousObjects[typeof(T)] = obj;
-            return this;
-        }
-
-        IContainerRegister IContainerRegister.Register<T>(ContainerKey key, T obj)
-        {
-            keyedObjects[key] = obj;
-            return this;
-        }
-
-        T IContainerResolve.Resolve<T>()
-        {
-            if (anonymousObjects.TryGetValue(typeof(T), out var obj))
+            if (obj == null)
             {
-                return (T)obj;
+                throw new ArgumentNullException(nameof(obj), "Cannot register a null object.");
             }
 
-            throw new InvalidOperationException($"Type {typeof(T)} is not registered.");
-        }
+            var type = obj.GetType();
 
-        T IContainerResolve.Resolve<T>(ContainerKey key)
-        {
-            if (keyedObjects.TryGetValue(key, out var obj))
+            if (!objects.ContainsKey(type))
             {
-                return (T)obj;
+                objects[type] = new();
             }
 
-            throw new InvalidOperationException($"Key {key.name} is not registered.");
+            objects[type][key] = obj;
         }
 
-        bool IContainerResolve.TryResolve<T>(out T value)
+        public void Register<T>(ContainerKey key, T obj)
         {
-            if (anonymousObjects.TryGetValue(typeof(T), out var obj))
+            var t = typeof(T);
+            if (!objects.ContainsKey(t))
             {
-                value = (T)obj;
-                return true;
+                objects[t] = new();
             }
 
-            value = default;
-            return false;
+            objects[t][key] = obj;
         }
 
-        bool IContainerResolve.TryResolve<T>(ContainerKey key, out T value)
+        public T Resolve<T>(ContainerKey key)
         {
-            if (keyedObjects.TryGetValue(key, out var obj))
+            if (TryResolve(key, out T value))
+            {
+                return value;
+            }
+
+            throw new InvalidOperationException($"No object registered for type {typeof(T)} with key {key}.");
+        }
+
+        public bool TryResolve<T>(ContainerKey key, out T value)
+        {
+            if (objects.TryGetValue(typeof(T), out var keyedObjects) && keyedObjects.TryGetValue(key, out var obj))
             {
                 value = (T)obj;
                 return true;

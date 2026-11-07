@@ -10,9 +10,8 @@ namespace HKFeedbackV2.Test
 
         private void Start()
         {
-            var container = new ContainerBuilder()
-                .Register(this)
-                .Build();
+            var container = new Container();
+            container.Register(ContainerKey.Anonymous, this);
             feedbacks.InvokeAsync(container, default).Forget();
         }
     }
