@@ -147,6 +147,8 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 """);
             var action = CreateAction(assembly, "Effects+Actions+Run");
             var pending = (TaskCompletionSource<bool>)assembly.GetType("Effects")!.GetField("Pending")!.GetValue(null)!;
+            Assert.Equal(returnType == "UniTask" ? typeof(HKFeedbackV2.Actions.AsyncAction) : typeof(object),
+                action.GetType().BaseType);
             var result = action.InvokeAsync(new Container(), default).AsTask();
             Assert.False(result.IsCompleted);
 
@@ -154,6 +156,96 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             pending.SetException(error);
 
             Assert.Same(error, await Assert.ThrowsAsync<InvalidOperationException>(() => result));
+        }
+
+        [Fact]
+        public async Task UniTaskActionCanRunWithoutWaiting()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                using System.Threading;
+                using System.Threading.Tasks;
+                using Cysharp.Threading.Tasks;
+                public static partial class Effects
+                {
+                    public static TaskCompletionSource<bool> Pending = new TaskCompletionSource<bool>();
+                    public static IContainer Context;
+                    public static CancellationToken Token;
+                    [FeedbackAction] private static UniTask Run(IContainer context, CancellationToken token)
+                    {
+                        Context = context;
+                        Token = token;
+                        return new UniTask(Pending.Task);
+                    }
+                }
+                """);
+            var action = CreateAction(assembly, "Effects+Actions+Run");
+            Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
+            typeof(HKFeedbackV2.Actions.AsyncAction).GetField("isWait", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(action, new Constant<bool>(false));
+            var container = new Container();
+            using var cancellation = new CancellationTokenSource();
+            var result = action.InvokeAsync(container, cancellation.Token).AsTask();
+            var effects = assembly.GetType("Effects")!;
+            var pending = (TaskCompletionSource<bool>)effects.GetField("Pending")!.GetValue(null)!;
+
+            Assert.True(result.IsCompletedSuccessfully);
+            Assert.False(pending.Task.IsCompleted);
+            Assert.Same(container, effects.GetField("Context")!.GetValue(null));
+            Assert.Equal(cancellation.Token, effects.GetField("Token")!.GetValue(null));
+            pending.SetResult(true);
+            await pending.Task;
+        }
+
+        [Theory]
+        [InlineData("Run")]
+        [InlineData("InvokeAsync")]
+        public async Task UniTaskInstanceActionResolvesTargetAndArguments(string methodName)
+        {
+            var assembly = Compile($$"""
+                using HKFeedbackV2;
+                using System.Threading;
+                using Cysharp.Threading.Tasks;
+                public partial class Effects
+                {
+                    public int Count;
+                    public CancellationToken Token;
+                    [FeedbackAction] private UniTask {{methodName}}(int value = 5, CancellationToken token = default)
+                    {
+                        Count += value;
+                        Token = token;
+                        return UniTask.CompletedTask;
+                    }
+                }
+                """);
+            var owner = assembly.GetType("Effects")!;
+            var target = Activator.CreateInstance(owner)!;
+            var container = new Container();
+            container.Register(ContainerKey.Anonymous, target);
+            var action = CreateAction(assembly, "Effects+Actions+" + methodName);
+            Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
+            SetResolver(action, "_argument0", new Constant<int>(17));
+            using var cancellation = new CancellationTokenSource();
+
+            await action.InvokeAsync(container, cancellation.Token);
+
+            Assert.Equal(17, owner.GetField("Count")!.GetValue(target));
+            Assert.Equal(cancellation.Token, owner.GetField("Token")!.GetValue(target));
+        }
+
+        [Fact]
+        public void UniTaskMethodNamedLikeRequiredOverrideIsDiagnosed()
+        {
+            var generation = Run("""
+                using HKFeedbackV2;
+                using Cysharp.Threading.Tasks;
+                public partial class Effects
+                {
+                    [FeedbackAction] private UniTask InvokeAsyncInternal() => UniTask.CompletedTask;
+                }
+                """);
+            Assert.Equal("HKFSG004", Assert.Single(generation.Result.Diagnostics).Id);
+            Assert.Empty(generation.Result.Results.Single().GeneratedSources);
         }
 
         [Fact]

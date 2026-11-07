@@ -1,3 +1,4 @@
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
@@ -19,6 +20,12 @@ namespace HKFeedbackV2.Test
         public void FeedbackActionTest()
         {
 
+        }
+
+        [FeedbackAction]
+        private UniTask TestUniTaskAsync(CancellationToken cancellationToken)
+        {
+            return UniTask.CompletedTask;
         }
     }
 }

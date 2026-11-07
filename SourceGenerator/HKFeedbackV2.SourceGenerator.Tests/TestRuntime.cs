@@ -37,6 +37,13 @@ namespace Cysharp.Threading.Tasks
     public static class UniTaskExtensions
     {
         public static UniTask AsUniTask(Task task) => new UniTask(task);
+
+        public static void Forget(this UniTask task)
+        {
+            // The stand-in already holds a running Task; observe failures without waiting.
+            _ = task.AsTask().ContinueWith(completed => { _ = completed.Exception; },
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+        }
     }
 }
 

@@ -116,6 +116,12 @@ namespace HKFeedbackV2.SourceGenerator
                     context.ReportDiagnostic(Diagnostic.Create(UnsupportedReturn, location, method.ToDisplayString()));
                     continue;
                 }
+                if (returnType == UniTaskName && method.Name == "InvokeAsyncInternal")
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(DuplicateName, location,
+                        method.ContainingType.ToDisplayString() + ".Actions." + method.Name));
+                    continue;
+                }
 
                 var invalidParameters = method.Parameters.Where(p =>
                     p.RefKind != RefKind.None || !CanResolve(p.Type)).ToArray();
@@ -272,8 +278,10 @@ namespace HKFeedbackV2.SourceGenerator
 
         private static void RenderAction(SourceWriter writer, IMethodSymbol method)
         {
+            var isAsyncAction = method.ReturnType.ToDisplayString() == UniTaskName;
+            var baseType = isAsyncAction ? "global::HKFeedbackV2.Actions.AsyncAction" : "global::HKFeedbackV2.IAction";
             writer.Line("[global::System.Serializable]");
-            writer.Open("public sealed class @" + method.Name + " : global::HKFeedbackV2.IAction");
+            writer.Open("public sealed class @" + method.Name + " : " + baseType);
 
             if (!method.IsStatic)
             {
@@ -292,9 +300,11 @@ namespace HKFeedbackV2.SourceGenerator
                 writer.Line();
             }
 
-            var invokeMethod = method.Name == "InvokeAsync"
-                ? "global::Cysharp.Threading.Tasks.UniTask global::HKFeedbackV2.IAction.InvokeAsync"
-                : "public global::Cysharp.Threading.Tasks.UniTask InvokeAsync";
+            var invokeMethod = isAsyncAction
+                ? "protected override global::Cysharp.Threading.Tasks.UniTask InvokeAsyncInternal"
+                : method.Name == "InvokeAsync"
+                    ? "global::Cysharp.Threading.Tasks.UniTask global::HKFeedbackV2.IAction.InvokeAsync"
+                    : "public global::Cysharp.Threading.Tasks.UniTask InvokeAsync";
             writer.Open(invokeMethod + "(global::HKFeedbackV2.IContainer container, global::System.Threading.CancellationToken cancellationToken)");
             writer.Line("cancellationToken.ThrowIfCancellationRequested();");
 
@@ -314,7 +324,7 @@ namespace HKFeedbackV2.SourceGenerator
                 writer.Line(invocation + ";");
                 writer.Line("return global::Cysharp.Threading.Tasks.UniTask.CompletedTask;");
             }
-            else if (method.ReturnType.ToDisplayString() == UniTaskName)
+            else if (isAsyncAction)
             {
                 writer.Line("return " + invocation + ";");
             }
