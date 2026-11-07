@@ -10,11 +10,11 @@ namespace HKFeedbackV2.Actions
     public abstract class AsyncAction : IAction
     {
         [SerializeReference, SubclassSelector]
-        private IResolver<bool> forget = new Constant<bool>(true);
+        private IResolver<bool> isWait = new Constant<bool>(true);
 
         public UniTask InvokeAsync(IContainer container, CancellationToken cancellationToken)
         {
-            if (forget.Resolve(container))
+            if (!isWait.Resolve(container))
             {
                 InvokeAsyncInternal(container, cancellationToken).Forget();
                 return UniTask.CompletedTask;
