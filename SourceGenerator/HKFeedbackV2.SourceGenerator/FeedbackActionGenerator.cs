@@ -116,12 +116,6 @@ namespace HKFeedbackV2.SourceGenerator
                     context.ReportDiagnostic(Diagnostic.Create(UnsupportedReturn, location, method.ToDisplayString()));
                     continue;
                 }
-                if (returnType == UniTaskName && method.Name == "InvokeAsyncInternal")
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(DuplicateName, location,
-                        method.ContainingType.ToDisplayString() + ".Actions." + method.Name));
-                    continue;
-                }
 
                 var invalidParameters = method.Parameters.Where(p =>
                     p.RefKind != RefKind.None || !CanResolve(p.Type)).ToArray();
@@ -136,7 +130,13 @@ namespace HKFeedbackV2.SourceGenerator
                     continue;
                 }
 
-                candidates.Add(new ActionDefinition(method, location));
+                var action = new ActionDefinition(method, location);
+                if (returnType == UniTaskName && action.Name == "InvokeAsyncInternal")
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(DuplicateName, location, action.FullName));
+                    continue;
+                }
+                candidates.Add(action);
             }
 
             foreach (var group in candidates.GroupBy(c => TypeName(c.Method.ContainingType), StringComparer.Ordinal)
@@ -153,7 +153,7 @@ namespace HKFeedbackV2.SourceGenerator
                 }
 
                 var actions = new List<ActionDefinition>();
-                foreach (var names in group.GroupBy(action => action.Method.Name, StringComparer.Ordinal)
+                foreach (var names in group.GroupBy(action => action.Name, StringComparer.Ordinal)
                     .OrderBy(names => names.Key, StringComparer.Ordinal))
                 {
                     if (names.Count() > 1)
@@ -236,6 +236,57 @@ namespace HKFeedbackV2.SourceGenerator
             return typeName == ContainerName || typeName == CancellationTokenName;
         }
 
+        private static string ActionName(IMethodSymbol method) => method.Parameters.Length == 0
+            ? method.Name
+            : method.Name + "_" + string.Join("_", method.Parameters.Select(parameter => ParameterTypeName(parameter.Type)));
+
+        private static string ParameterTypeName(ITypeSymbol type)
+        {
+            if (type.TypeKind == TypeKind.Dynamic) return "object";
+            var alias = type.SpecialType switch
+            {
+                SpecialType.System_Boolean => "bool",
+                SpecialType.System_Byte => "byte",
+                SpecialType.System_SByte => "sbyte",
+                SpecialType.System_Int16 => "short",
+                SpecialType.System_UInt16 => "ushort",
+                SpecialType.System_Int32 => "int",
+                SpecialType.System_UInt32 => "uint",
+                SpecialType.System_Int64 => "long",
+                SpecialType.System_UInt64 => "ulong",
+                SpecialType.System_Char => "char",
+                SpecialType.System_Single => "float",
+                SpecialType.System_Double => "double",
+                SpecialType.System_Decimal => "decimal",
+                SpecialType.System_String => "string",
+                SpecialType.System_Object => "object",
+                SpecialType.System_IntPtr => "nint",
+                SpecialType.System_UIntPtr => "nuint",
+                _ => null
+            };
+            if (alias != null) return alias;
+            if (type is IArrayTypeSymbol array)
+            {
+                return ParameterTypeName(array.ElementType) + "_array" + (array.Rank == 1 ? "" : array.Rank.ToString());
+            }
+            if (type is INamedTypeSymbol named)
+            {
+                if (named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+                {
+                    return ParameterTypeName(named.TypeArguments[0]) + "_nullable";
+                }
+                var name = named.ContainingType == null
+                    ? named.Name
+                    : ParameterTypeName(named.ContainingType) + "_" + named.Name;
+                if (named.TypeArguments.Length != 0)
+                {
+                    name += "_" + string.Join("_", named.TypeArguments.Select(ParameterTypeName));
+                }
+                return name;
+            }
+            throw new InvalidOperationException("Unsupported action parameter type: " + type.ToDisplayString());
+        }
+
         private static string Render(INamedTypeSymbol owner, IEnumerable<ActionDefinition> actions)
         {
             var writer = new SourceWriter();
@@ -268,7 +319,7 @@ namespace HKFeedbackV2.SourceGenerator
             writer.Open("public static class Actions");
             foreach (var action in actions)
             {
-                RenderAction(writer, action.Method);
+                RenderAction(writer, action);
             }
             writer.Close();
             foreach (var _ in ContainingTypes(owner)) writer.Close();
@@ -276,18 +327,19 @@ namespace HKFeedbackV2.SourceGenerator
             return writer.ToString();
         }
 
-        private static void RenderAction(SourceWriter writer, IMethodSymbol method)
+        private static void RenderAction(SourceWriter writer, ActionDefinition action)
         {
+            var method = action.Method;
             var isAsyncAction = method.ReturnType.ToDisplayString() == UniTaskName;
             var baseType = isAsyncAction ? "global::HKFeedbackV2.Actions.AsyncAction" : "global::HKFeedbackV2.IAction";
             writer.Line("[global::System.Serializable]");
-            writer.Open("public sealed class @" + method.Name + " : " + baseType);
+            writer.Open("public sealed class @" + action.Name + " : " + baseType);
 
             if (!method.IsStatic)
             {
                 var owner = TypeName(method.ContainingType);
                 writer.Line("[global::UnityEngine.SerializeReference, global::SubclassSelector]");
-                writer.Line($"private global::HKFeedbackV2.IResolver<{owner}> {FieldName(method, "_target")} = new global::HKFeedbackV2.Resolvers.Anonymous<{owner}>();");
+                writer.Line($"private global::HKFeedbackV2.IResolver<{owner}> {FieldName(action.Name, "_target")} = new global::HKFeedbackV2.Resolvers.Anonymous<{owner}>();");
                 writer.Line();
             }
 
@@ -296,13 +348,13 @@ namespace HKFeedbackV2.SourceGenerator
                 var typeName = TypeName(parameter.Type);
                 writer.Line("[global::UnityEngine.SerializeReference, global::SubclassSelector]");
                 writer.Line("[global::UnityEngine.InspectorName(" + SymbolDisplay.FormatLiteral(parameter.Name, true) + ")]");
-                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> {FieldName(method, "_argument" + parameter.Ordinal)} = new global::HKFeedbackV2.Resolvers.Embed<{typeName}>({DefaultValue(parameter)});");
+                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> {FieldName(action.Name, "_argument" + parameter.Ordinal)} = new global::HKFeedbackV2.Resolvers.Embed<{typeName}>({DefaultValue(parameter)});");
                 writer.Line();
             }
 
             var invokeMethod = isAsyncAction
                 ? "protected override global::Cysharp.Threading.Tasks.UniTask InvokeAsyncInternal"
-                : method.Name == "InvokeAsync"
+                : action.Name == "InvokeAsync"
                     ? "global::Cysharp.Threading.Tasks.UniTask global::HKFeedbackV2.IAction.InvokeAsync"
                     : "public global::Cysharp.Threading.Tasks.UniTask InvokeAsync";
             writer.Open(invokeMethod + "(global::HKFeedbackV2.IContainer container, global::System.Threading.CancellationToken cancellationToken)");
@@ -313,10 +365,10 @@ namespace HKFeedbackV2.SourceGenerator
                 var name = p.Type.ToDisplayString();
                 return name == ContainerName ? "container"
                     : name == CancellationTokenName ? "cancellationToken"
-                    : "this." + FieldName(method, "_argument" + p.Ordinal) + ".Resolve(container)";
+                    : "this." + FieldName(action.Name, "_argument" + p.Ordinal) + ".Resolve(container)";
             }));
             var receiver = method.IsStatic ? TypeName(method.ContainingType)
-                : "this." + FieldName(method, "_target") + ".Resolve(container)";
+                : "this." + FieldName(action.Name, "_target") + ".Resolve(container)";
             var invocation = receiver + ".@" + method.Name + "(" + arguments + ")";
 
             if (method.ReturnsVoid)
@@ -337,10 +389,11 @@ namespace HKFeedbackV2.SourceGenerator
             writer.Line();
         }
 
-        private static string FieldName(IMethodSymbol method, string name) => method.Name == name ? "_" + name : name;
+        private static string FieldName(string className, string name) => className == name ? "_" + name : name;
 
         private static string TypeName(ITypeSymbol type) =>
-            type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            type.TypeKind == TypeKind.Dynamic ? "global::System.Object"
+                : type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
         private static string DefaultValue(IParameterSymbol parameter)
         {
@@ -373,12 +426,14 @@ namespace HKFeedbackV2.SourceGenerator
         private sealed class ActionDefinition
         {
             public IMethodSymbol Method { get; }
+            public string Name { get; }
             public Location? Location { get; }
-            public string FullName => Method.ContainingType.ToDisplayString() + ".Actions." + Method.Name;
+            public string FullName => Method.ContainingType.ToDisplayString() + ".Actions." + Name;
 
             public ActionDefinition(IMethodSymbol method, Location? location)
             {
                 Method = method;
+                Name = ActionName(method);
                 Location = location;
             }
         }

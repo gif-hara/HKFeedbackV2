@@ -479,10 +479,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 714de4bcfe1d58b4a8b7a4fa6be9140b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Test::HKFeedbackV2.Test.TestSceneController
-  feedbacks: []
+  feedbacks:
+  - rid: -2
   references:
     version: 2
-    RefIds: []
+    RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

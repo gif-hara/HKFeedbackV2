@@ -37,7 +37,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     public static string Message;
                     public static IContainer Context;
                     public static CancellationToken Token;
-                    public static IAction CreateAction() => new Effects.Actions.Run();
+                    public static IAction CreateAction() => new Effects.Actions.Run_int_string_IContainer_CancellationToken();
                     [FeedbackAction]
                     public static void Run(int value = 3, string message = "hello",
                         IContainer context = null, CancellationToken token = default)
@@ -46,7 +46,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     }
                 }
                 """);
-            var action = CreateAction(assembly, "Game.Effects+Actions+Run");
+            var action = CreateAction(assembly, "Game.Effects+Actions+Run_int_string_IContainer_CancellationToken");
             var container = new Container();
             using var cancellation = new CancellationTokenSource();
             SetResolver(action, "_argument0", new Embed<int>(42));
@@ -78,7 +78,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var target = Activator.CreateInstance(assembly.GetType("Game.Effects")!)!;
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
-            var action = CreateAction(assembly, "Game.Effects+Actions+Add");
+            var action = CreateAction(assembly, "Game.Effects+Actions+Add_int");
 
             await action.InvokeAsync(container, default);
 
@@ -179,7 +179,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     }
                 }
                 """);
-            var action = CreateAction(assembly, "Effects+Actions+Run");
+            var action = CreateAction(assembly, "Effects+Actions+Run_IContainer_CancellationToken");
             Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
             typeof(HKFeedbackV2.Actions.AsyncAction).GetField("isWait", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .SetValue(action, new Embed<bool>(false));
@@ -200,6 +200,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         [Theory]
         [InlineData("Run")]
         [InlineData("InvokeAsync")]
+        [InlineData("InvokeAsyncInternal")]
         public async Task UniTaskInstanceActionResolvesTargetAndArguments(string methodName)
         {
             var assembly = Compile($$"""
@@ -222,7 +223,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var target = Activator.CreateInstance(owner)!;
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
-            var action = CreateAction(assembly, "Effects+Actions+" + methodName);
+            var action = CreateAction(assembly, "Effects+Actions+" + methodName + "_int_CancellationToken");
             Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
             SetResolver(action, "_argument0", new Embed<int>(17));
             using var cancellation = new CancellationTokenSource();
@@ -286,9 +287,9 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             AssertSuccess(generation);
             Assert.Single(generation.Result.Results.Single().GeneratedSources);
             var code = string.Join("\n", generation.Result.Results.Single().GeneratedSources.Select(s => s.SourceText));
-            Assert.Contains("class @switch", code);
-            Assert.Contains("class @RunString", code);
-            Assert.Contains("class @RunNumber", code);
+            Assert.Contains("class @switch_int :", code);
+            Assert.Contains("class @RunString_string :", code);
+            Assert.Contains("class @RunNumber_int :", code);
             Assert.Contains(".@switch(", code);
         }
 
@@ -324,19 +325,126 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         }
 
         [Fact]
-        public void OverloadedMethodsReportNameCollisions()
+        public async Task OverloadedMethodsGenerateAndInvokeEachSignature()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                using System.Threading;
+                using Cysharp.Threading.Tasks;
+                public partial class Effects
+                {
+                    public static int Value;
+                    public static CancellationToken Token;
+                    [FeedbackAction] private static void Play() { Value = 0; }
+                    [FeedbackAction] private static void Play(int value = 7) { Value = value; }
+                    [FeedbackAction] private static void Play(string value = "hello") { Value = value.Length; }
+                    [FeedbackAction] private static void Play(int value = 4, float scale = 2) { Value = (int)(value * scale); }
+                    [FeedbackAction] private static void Play(float scale = 3, int value = 4) { Value = (int)(value + scale); }
+                    [FeedbackAction] private static UniTask Play(int value = 1, CancellationToken token = default)
+                    {
+                        Value = 100 + value;
+                        Token = token;
+                        return UniTask.CompletedTask;
+                    }
+                    public static IAction[] CreateActions() => new IAction[]
+                    {
+                        new Actions.Play(), new Actions.Play_int(), new Actions.Play_string(),
+                        new Actions.Play_int_float(), new Actions.Play_float_int(), new Actions.Play_int_CancellationToken()
+                    };
+                }
+                """);
+            var owner = assembly.GetType("Effects")!;
+            var actions = (IAction[])owner.GetMethod("CreateActions")!.Invoke(null, null)!;
+            var expectedNames = new[] { "Play", "Play_int", "Play_string", "Play_int_float", "Play_float_int", "Play_int_CancellationToken" };
+            var expectedValues = new[] { 0, 7, 5, 8, 7, 101 };
+            using var cancellation = new CancellationTokenSource();
+            for (var i = 0; i < actions.Length; i++)
+            {
+                Assert.Equal(expectedNames[i], actions[i].GetType().Name);
+                await actions[i].InvokeAsync(new Container(), cancellation.Token);
+                Assert.Equal(expectedValues[i], owner.GetField("Value")!.GetValue(null));
+                Assert.Equal(i == actions.Length - 1, actions[i] is HKFeedbackV2.Actions.AsyncAction);
+            }
+            Assert.Equal(cancellation.Token, owner.GetField("Token")!.GetValue(null));
+        }
+
+        [Fact]
+        public void NormalizedActionNameCollisionsAreDiagnosed()
         {
             var generation = Run("""
                 using HKFeedbackV2;
                 public partial class Effects
                 {
-                    [FeedbackAction] public static void Run(int value) { }
-                    [FeedbackAction] public static void Run(string value) { }
+                    [FeedbackAction] public static void Play(int value) { }
+                    [FeedbackAction] public static void Play_int() { }
                 }
                 """);
             Assert.Equal(2, generation.Result.Diagnostics.Length);
             Assert.All(generation.Result.Diagnostics, d => Assert.Equal("HKFSG004", d.Id));
             Assert.Empty(generation.Result.Results.Single().GeneratedSources);
+        }
+
+        [Theory]
+        [InlineData("System.Int32", "int")]
+        [InlineData("global::System.Single", "float")]
+        [InlineData("string", "string")]
+        [InlineData("int[]", "int_array")]
+        [InlineData("int[,]", "int_array2")]
+        [InlineData("int?", "int_nullable")]
+        [InlineData("System.Collections.Generic.List<int>", "List_int")]
+        [InlineData("System.Collections.Generic.Dictionary<string, int[]>", "Dictionary_string_int_array")]
+        [InlineData("dynamic", "object")]
+        public void ParameterTypesProduceValidReadableClassNames(string parameterType, string suffix)
+        {
+            var assembly = Compile($$"""
+                using HKFeedbackV2;
+                public static partial class Effects
+                {
+                    [FeedbackAction] private static void Play({{parameterType}} value) { }
+                }
+                """);
+            Assert.NotNull(assembly.GetType("Effects+Actions+Play_" + suffix));
+        }
+
+        [Fact]
+        public void AddingOverloadsAndRenamingParametersKeepExistingActionNames()
+        {
+            var single = Compile("""
+                using HKFeedbackV2;
+                public static partial class Effects
+                {
+                    [FeedbackAction] public static void Play(int count) { }
+                }
+                """);
+            var multiple = Compile("""
+                using HKFeedbackV2;
+                public static partial class Effects
+                {
+                    [FeedbackAction] public static void Play(string message) { }
+                    [FeedbackAction] public static void Play(int renamed) { }
+                }
+                """);
+            Assert.NotNull(single.GetType("Effects+Actions+Play_int"));
+            Assert.NotNull(multiple.GetType("Effects+Actions+Play_int"));
+            Assert.NotNull(multiple.GetType("Effects+Actions+Play_string"));
+        }
+
+        [Fact]
+        public async Task DynamicParameterInvokesItsDeclaredOverload()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public static partial class Effects
+                {
+                    public static string Last;
+                    [FeedbackAction] private static void Play(dynamic value) { Last = "object"; }
+                    [FeedbackAction] private static void Play(int value) { Last = "int"; }
+                }
+                """);
+            var action = CreateAction(assembly, "Effects+Actions+Play_object");
+            SetResolver(action, "_argument0", new Embed<object>(42));
+            await action.InvokeAsync(new Container(), default);
+            Assert.Equal("object", assembly.GetType("Effects")!.GetField("Last")!.GetValue(null));
         }
 
         [Fact]
@@ -466,8 +574,29 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var target = Activator.CreateInstance(owner)!;
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
-            await CreateAction(assembly, "Effects+Actions+" + methodName).InvokeAsync(container, default);
+            await CreateAction(assembly, "Effects+Actions+" + methodName + "_int").InvokeAsync(container, default);
             Assert.Equal(5, owner.GetField("Count")!.GetValue(target));
+        }
+
+        [Theory]
+        [InlineData("InvokeAsync")]
+        [InlineData("_target")]
+        public async Task ParameterlessMethodNamesCanMatchGeneratedMembers(string methodName)
+        {
+            var assembly = Compile($$"""
+                using HKFeedbackV2;
+                public partial class Effects
+                {
+                    public int Count;
+                    [FeedbackAction] private void {{methodName}}() { Count++; }
+                }
+                """);
+            var owner = assembly.GetType("Effects")!;
+            var target = Activator.CreateInstance(owner)!;
+            var container = new Container();
+            container.Register(ContainerKey.Anonymous, target);
+            await CreateAction(assembly, "Effects+Actions+" + methodName).InvokeAsync(container, default);
+            Assert.Equal(1, owner.GetField("Count")!.GetValue(target));
         }
 
         [Fact]

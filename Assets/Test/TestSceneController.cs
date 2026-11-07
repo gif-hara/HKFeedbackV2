@@ -27,5 +27,11 @@ namespace HKFeedbackV2.Test
         {
             return UniTask.CompletedTask;
         }
+
+        [FeedbackAction]
+        private void TestArgumentAction(int hoge, float fuga)
+        {
+            Debug.Log($"TestArgumentAction: {hoge}, {fuga}");
+        }
     }
 }
