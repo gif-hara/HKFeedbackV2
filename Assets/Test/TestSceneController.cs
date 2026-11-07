@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace HKFeedbackV2.Test
 {
-    public class TestSceneController : MonoBehaviour
+    public partial class TestSceneController : MonoBehaviour
     {
         [SerializeReference, SubclassSelector]
         private IAction[] feedbacks;
@@ -13,6 +13,12 @@ namespace HKFeedbackV2.Test
             var container = new Container();
             container.Register(ContainerKey.Anonymous, this);
             feedbacks.InvokeAsync(container, default).Forget();
+        }
+
+        [FeedbackAction]
+        public void FeedbackActionTest()
+        {
+
         }
     }
 }

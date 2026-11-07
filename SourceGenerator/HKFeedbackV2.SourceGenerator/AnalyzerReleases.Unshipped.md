@@ -9,3 +9,4 @@ HKFSG003 | HKFeedbackV2.SourceGenerator | Error | Unsupported feedback action re
 HKFSG004 | HKFeedbackV2.SourceGenerator | Error | Duplicate action class name
 HKFSG005 | HKFeedbackV2.SourceGenerator | Error | Unsupported parameter
 HKFSG006 | HKFeedbackV2.SourceGenerator | Error | Async void cannot be awaited
+HKFSG007 | HKFeedbackV2.SourceGenerator | Error | Containing classes must be partial

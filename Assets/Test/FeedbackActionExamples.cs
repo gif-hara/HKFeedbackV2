@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace HKFeedbackV2.Test
 {
-    public static class FeedbackActionExamples
+    public static partial class FeedbackActionExamples
     {
         [FeedbackAction]
         public static void Log(string message = "Hello from a generated action")

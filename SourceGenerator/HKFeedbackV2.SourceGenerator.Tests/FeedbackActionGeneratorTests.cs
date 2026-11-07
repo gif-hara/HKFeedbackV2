@@ -31,12 +31,13 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 using System.Threading;
                 using HKFeedbackV2;
                 namespace Game;
-                public static class Effects
+                public static partial class Effects
                 {
                     public static int Value;
                     public static string Message;
                     public static IContainer Context;
                     public static CancellationToken Token;
+                    public static IAction CreateAction() => new Effects.Actions.Run();
                     [FeedbackAction]
                     public static void Run(int value = 3, string message = "hello",
                         IContainer context = null, CancellationToken token = default)
@@ -45,7 +46,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     }
                 }
                 """);
-            var action = CreateAction(assembly, "Game.Effects_RunAction");
+            var action = CreateAction(assembly, "Game.Effects+Actions+Run");
             var container = new Container();
             using var cancellation = new CancellationTokenSource();
             SetResolver(action, "_argument0", new Constant<int>(42));
@@ -67,17 +68,17 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var assembly = Compile("""
                 using HKFeedbackV2;
                 namespace Game;
-                public sealed class Effects
+                public sealed partial class Effects
                 {
                     public int Value;
                     [FeedbackAction]
-                    internal void Add(int value = 7) { Value += value; }
+                    private void Add(int value = 7) { Value += value; }
                 }
                 """);
             var target = Activator.CreateInstance(assembly.GetType("Game.Effects")!)!;
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
-            var action = CreateAction(assembly, "Game.Effects_AddAction");
+            var action = CreateAction(assembly, "Game.Effects+Actions+Add");
 
             await action.InvokeAsync(container, default);
 
@@ -89,7 +90,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         {
             var assembly = Compile("""
                 using HKFeedbackV2;
-                public class Effects
+                public partial class Effects
                 {
                     public int Count;
                     [FeedbackAction] public void Run() { Count++; }
@@ -98,7 +99,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var owner = assembly.GetType("Effects")!;
             var target = Activator.CreateInstance(owner)!;
             var resolver = Activator.CreateInstance(typeof(Constant<>).MakeGenericType(owner), target)!;
-            var action = CreateAction(assembly, "Effects_RunAction");
+            var action = CreateAction(assembly, "Effects+Actions+Run");
             SetResolver(action, "_target", resolver);
 
             await action.InvokeAsync(new Container(), default);
@@ -115,13 +116,13 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var assembly = Compile($$"""
                 using HKFeedbackV2;
                 {{import}}
-                public static class Effects
+                public static partial class Effects
                 {
                     public static bool Called;
                     [FeedbackAction] public static {{returnType}} Run() { Called = true; {{body}} }
                 }
                 """);
-            var action = CreateAction(assembly, "Effects_RunAction");
+            var action = CreateAction(assembly, "Effects+Actions+Run");
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
 
@@ -138,13 +139,13 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 using HKFeedbackV2;
                 using System.Threading.Tasks;
                 using Cysharp.Threading.Tasks;
-                public static class Effects
+                public static partial class Effects
                 {
                     public static TaskCompletionSource<bool> Pending = new TaskCompletionSource<bool>();
                     [FeedbackAction] public static {{returnType}} Run() => {{expression}};
                 }
                 """);
-            var action = CreateAction(assembly, "Effects_RunAction");
+            var action = CreateAction(assembly, "Effects+Actions+Run");
             var pending = (TaskCompletionSource<bool>)assembly.GetType("Effects")!.GetField("Pending")!.GetValue(null)!;
             var result = action.InvokeAsync(new Container(), default).AsTask();
             Assert.False(result.IsCompleted);
@@ -162,7 +163,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 using HKFeedbackV2;
                 using System;
                 using System.Collections.Generic;
-                public static class Effects
+                public static partial class Effects
                 {
                     [FeedbackAction] public static void Run(
                         string text = "line\n\"quoted\"", char character = '\'',
@@ -180,9 +181,9 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var generation = Run("""
                 using Mark = HKFeedbackV2.FeedbackActionAttribute;
                 namespace @event;
-                internal class Outer
+                internal partial class Outer
                 {
-                    internal class Inner
+                    internal partial class Inner
                     {
                         [Mark] internal static void @switch(int @event) { }
                         [Mark] public static void RunString(string value) { }
@@ -191,16 +192,15 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 }
                 """);
             AssertSuccess(generation);
-            Assert.Equal(3, generation.Result.Results.Single().GeneratedSources.Length);
+            Assert.Single(generation.Result.Results.Single().GeneratedSources);
             var code = string.Join("\n", generation.Result.Results.Single().GeneratedSources.Select(s => s.SourceText));
-            Assert.Contains("Outer_Inner_switchAction", code);
-            Assert.Contains("Outer_Inner_RunStringAction", code);
-            Assert.Contains("Outer_Inner_RunNumberAction", code);
+            Assert.Contains("class @switch", code);
+            Assert.Contains("class @RunString", code);
+            Assert.Contains("class @RunNumber", code);
             Assert.Contains(".@switch(", code);
         }
 
         [Theory]
-        [InlineData("[FeedbackAction] private static void Run() { }", "HKFSG002")]
         [InlineData("[FeedbackAction] public static void Run<T>() { }", "HKFSG002")]
         [InlineData("[FeedbackAction] public abstract void Run();", "HKFSG002")]
         [InlineData("[FeedbackAction] public static int Run() => 1;", "HKFSG003")]
@@ -213,7 +213,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         [InlineData("[FeedbackAction] public static async void Run() { await System.Threading.Tasks.Task.Yield(); }", "HKFSG006")]
         public void InvalidDeclarationsReportActionableDiagnostics(string declaration, string diagnosticId)
         {
-            var generation = Run("using HKFeedbackV2; public abstract class Effects { " + declaration + " }");
+            var generation = Run("using HKFeedbackV2; public abstract partial class Effects { " + declaration + " }");
             var diagnostic = Assert.Single(generation.Result.Diagnostics);
             Assert.Equal(diagnosticId, diagnostic.Id);
             Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
@@ -222,8 +222,8 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         }
 
         [Theory]
-        [InlineData("public class Effects<T> { [FeedbackAction] public static void Run() { } }")]
-        [InlineData("public class Outer { private class Effects { [FeedbackAction] public static void Run() { } } }")]
+        [InlineData("public partial class Effects<T> { [FeedbackAction] public static void Run() { } }")]
+        [InlineData("public partial class Outer<T> { private partial class Effects { [FeedbackAction] public static void Run() { } } }")]
         [InlineData("public struct Effects { [FeedbackAction] public void Run() { } }")]
         public void UnsupportedContainingTypesAreDiagnosed(string declaration)
         {
@@ -236,7 +236,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         {
             var generation = Run("""
                 using HKFeedbackV2;
-                public class Effects
+                public partial class Effects
                 {
                     [FeedbackAction] public static void Run(int value) { }
                     [FeedbackAction] public static void Run(string value) { }
@@ -252,8 +252,11 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         {
             var generation = Run("""
                 using HKFeedbackV2;
-                public class Effects_RunAction { }
-                public class Effects { [FeedbackAction] public static void Run() { } }
+                public partial class Effects
+                {
+                    public static class Actions { }
+                    [FeedbackAction] public static void Run() { }
+                }
                 """);
             Assert.Equal("HKFSG004", Assert.Single(generation.Result.Diagnostics).Id);
         }
@@ -277,13 +280,112 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         }
 
         [Fact]
+        public async Task DifferentOwnersHaveTheirOwnActionsContainers()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public static partial class First
+                {
+                    public static int Count;
+                    [FeedbackAction] private static void Run() { Count++; }
+                }
+                public static partial class Second
+                {
+                    public static int Count;
+                    [FeedbackAction] private static void Run() { Count++; }
+                }
+                public static class Consumer
+                {
+                    public static IAction CreateFirst() => new First.Actions.Run();
+                    public static IAction CreateSecond() => new Second.Actions.Run();
+                }
+                """);
+            await CreateAction(assembly, "First+Actions+Run").InvokeAsync(new Container(), default);
+            await CreateAction(assembly, "Second+Actions+Run").InvokeAsync(new Container(), default);
+            Assert.Equal(1, assembly.GetType("First")!.GetField("Count")!.GetValue(null));
+            Assert.Equal(1, assembly.GetType("Second")!.GetField("Count")!.GetValue(null));
+        }
+
+        [Fact]
+        public async Task PrivateNestedClassCanGenerateActions()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public partial class Outer
+                {
+                    public static bool Called;
+                    public static IAction Create() => new Inner.Actions.Run();
+                    private sealed partial class Inner
+                    {
+                        [FeedbackAction] private static void Run() { Called = true; }
+                    }
+                }
+                """);
+            var action = (IAction)assembly.GetType("Outer")!.GetMethod("Create")!.Invoke(null, null)!;
+            await action.InvokeAsync(new Container(), default);
+            Assert.Equal(true, assembly.GetType("Outer")!.GetField("Called")!.GetValue(null));
+        }
+
+        [Theory]
+        [InlineData("public class Effects { [FeedbackAction] public static void Run() { } }")]
+        [InlineData("public class Outer { private partial class Inner { [FeedbackAction] private static void Run() { } } }")]
+        [InlineData("public partial class Effects { [FeedbackAction] public static void Run() { } } public class Effects { }")]
+        public void NonPartialContainingClassesAreDiagnosed(string declaration)
+        {
+            var generation = Run("using HKFeedbackV2; " + declaration);
+            Assert.Equal("HKFSG007", Assert.Single(generation.Result.Diagnostics).Id);
+            Assert.Empty(generation.Result.Results.Single().GeneratedSources);
+        }
+
+        [Theory]
+        [InlineData("public int Actions;")]
+        [InlineData("public void Actions() { }")]
+        public void ExistingActionsMembersAreDiagnosed(string member)
+        {
+            var generation = Run("using HKFeedbackV2; public partial class Effects { " + member +
+                " [FeedbackAction] private void Run() { } }");
+            Assert.Equal("HKFSG004", Assert.Single(generation.Result.Diagnostics).Id);
+        }
+
+        [Theory]
+        [InlineData("public partial class Actions { [FeedbackAction] public static void Run() { } }")]
+        [InlineData("public partial class Effects { [FeedbackAction] public static void Actions() { } }")]
+        public void NamesConflictingWithTheActionsContainerAreDiagnosed(string declaration)
+        {
+            var generation = Run("using HKFeedbackV2; " + declaration);
+            Assert.Equal("HKFSG004", Assert.Single(generation.Result.Diagnostics).Id);
+        }
+
+        [Theory]
+        [InlineData("InvokeAsync")]
+        [InlineData("_argument0")]
+        [InlineData("_target")]
+        public async Task MethodNamesCanMatchGeneratedMembers(string methodName)
+        {
+            var assembly = Compile($$"""
+                using HKFeedbackV2;
+                public partial class Effects
+                {
+                    public int Count;
+                    [FeedbackAction] private void {{methodName}}(int value = 5) { Count += value; }
+                }
+                """);
+            var owner = assembly.GetType("Effects")!;
+            var target = Activator.CreateInstance(owner)!;
+            var container = new Container();
+            container.Register(ContainerKey.Anonymous, target);
+            await CreateAction(assembly, "Effects+Actions+" + methodName).InvokeAsync(container, default);
+            Assert.Equal(5, owner.GetField("Count")!.GetValue(target));
+        }
+
+        [Fact]
         public void UnrelatedAttributesAndUnannotatedMethodsAreIgnored()
         {
             var generation = Run("""
                 using System;
                 namespace Other;
                 public class FeedbackActionAttribute : Attribute { }
-                public class Effects
+                public partial class Effects
                 {
                     [FeedbackAction] public static void Run() { }
                     public static void Unannotated() { }
