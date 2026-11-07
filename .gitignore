@@ -104,3 +104,11 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Hand-authored Source Generator projects (Unity projects above stay ignored).
+!/SourceGenerator/**/*.csproj
+!/SourceGenerator/*.sln
+!/SourceGenerator/*.slnx
+/SourceGenerator/**/bin/
+/SourceGenerator/**/obj/
+/SourceGenerator/**/TestResults/

@@ -2,7 +2,8 @@ using System;
 
 namespace HKFeedbackV2
 {
-    public class FeedbackActionAttribute : Attribute
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
+    public sealed class FeedbackActionAttribute : Attribute
     {
     }
 }
