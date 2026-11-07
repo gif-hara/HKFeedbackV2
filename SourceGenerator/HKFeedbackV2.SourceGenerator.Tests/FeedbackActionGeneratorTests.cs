@@ -49,7 +49,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var action = CreateAction(assembly, "Game.Effects+Actions+Run");
             var container = new Container();
             using var cancellation = new CancellationTokenSource();
-            SetResolver(action, "_argument0", new Constant<int>(42));
+            SetResolver(action, "_argument0", new Embed<int>(42));
 
             await action.InvokeAsync(container, cancellation.Token);
 
@@ -98,7 +98,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 """);
             var owner = assembly.GetType("Effects")!;
             var target = Activator.CreateInstance(owner)!;
-            var resolver = Activator.CreateInstance(typeof(Constant<>).MakeGenericType(owner), target)!;
+            var resolver = Activator.CreateInstance(typeof(Embed<>).MakeGenericType(owner), target)!;
             var action = CreateAction(assembly, "Effects+Actions+Run");
             SetResolver(action, "_target", resolver);
 
@@ -182,7 +182,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var action = CreateAction(assembly, "Effects+Actions+Run");
             Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
             typeof(HKFeedbackV2.Actions.AsyncAction).GetField("isWait", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .SetValue(action, new Constant<bool>(false));
+                .SetValue(action, new Embed<bool>(false));
             var container = new Container();
             using var cancellation = new CancellationTokenSource();
             var result = action.InvokeAsync(container, cancellation.Token).AsTask();
@@ -224,7 +224,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             container.Register(ContainerKey.Anonymous, target);
             var action = CreateAction(assembly, "Effects+Actions+" + methodName);
             Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
-            SetResolver(action, "_argument0", new Constant<int>(17));
+            SetResolver(action, "_argument0", new Embed<int>(17));
             using var cancellation = new CancellationTokenSource();
 
             await action.InvokeAsync(container, cancellation.Token);

@@ -4,13 +4,13 @@ using UnityEngine;
 namespace HKFeedbackV2.Resolvers
 {
     [Serializable]
-    public sealed class ContainerWithKey<T> : IResolver<T>
+    public sealed class ContainerKey<T> : IResolver<T>
     {
         [SerializeReference, SubclassSelector]
-        private IResolver<bool> canBeNull = new Constant<bool>(false);
+        private IResolver<bool> canBeNull = new Embed<bool>(false);
 
         [SerializeReference, SubclassSelector]
-        private IResolver<ContainerKey> key = new Constant<ContainerKey>(null);
+        private IResolver<ContainerKey> key = new Embed<ContainerKey>(null);
 
         public T Resolve(IContainer container)
         {
@@ -25,7 +25,7 @@ namespace HKFeedbackV2.Resolvers
             }
         }
 
-        public ContainerWithKey()
+        public ContainerKey()
         {
         }
     }

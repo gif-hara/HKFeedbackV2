@@ -287,7 +287,7 @@ namespace HKFeedbackV2.SourceGenerator
             {
                 var owner = TypeName(method.ContainingType);
                 writer.Line("[global::UnityEngine.SerializeReference, global::SubclassSelector]");
-                writer.Line($"private global::HKFeedbackV2.IResolver<{owner}> {FieldName(method, "_target")} = new global::HKFeedbackV2.Resolvers.ContainerAnonymous<{owner}>();");
+                writer.Line($"private global::HKFeedbackV2.IResolver<{owner}> {FieldName(method, "_target")} = new global::HKFeedbackV2.Resolvers.Anonymous<{owner}>();");
                 writer.Line();
             }
 
@@ -296,7 +296,7 @@ namespace HKFeedbackV2.SourceGenerator
                 var typeName = TypeName(parameter.Type);
                 writer.Line("[global::UnityEngine.SerializeReference, global::SubclassSelector]");
                 writer.Line("[global::UnityEngine.InspectorName(" + SymbolDisplay.FormatLiteral(parameter.Name, true) + ")]");
-                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> {FieldName(method, "_argument" + parameter.Ordinal)} = new global::HKFeedbackV2.Resolvers.Constant<{typeName}>({DefaultValue(parameter)});");
+                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> {FieldName(method, "_argument" + parameter.Ordinal)} = new global::HKFeedbackV2.Resolvers.Embed<{typeName}>({DefaultValue(parameter)});");
                 writer.Line();
             }
 

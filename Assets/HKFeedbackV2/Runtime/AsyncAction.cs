@@ -10,7 +10,7 @@ namespace HKFeedbackV2.Actions
     public abstract class AsyncAction : IAction
     {
         [SerializeReference, SubclassSelector]
-        private IResolver<bool> isWait = new Constant<bool>(true);
+        private IResolver<bool> isWait = new Embed<bool>(true);
 
         public UniTask InvokeAsync(IContainer container, CancellationToken cancellationToken)
         {

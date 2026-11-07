@@ -4,10 +4,10 @@ using UnityEngine;
 namespace HKFeedbackV2.Resolvers
 {
     [Serializable]
-    public sealed class ContainerAnonymous<T> : IResolver<T>
+    public sealed class Anonymous<T> : IResolver<T>
     {
         [SerializeReference, SubclassSelector]
-        private IResolver<bool> canBeNull = new Constant<bool>(false);
+        private IResolver<bool> canBeNull = new Embed<bool>(false);
 
         public T Resolve(IContainer container)
         {
@@ -22,7 +22,7 @@ namespace HKFeedbackV2.Resolvers
             }
         }
 
-        public ContainerAnonymous()
+        public Anonymous()
         {
         }
     }

@@ -18,7 +18,8 @@
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/IResolver.cs" Link="Runtime/IResolver.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/Container.cs" Link="Runtime/Container.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/FeedbackActionAttribute.cs" Link="Runtime/FeedbackActionAttribute.cs" />
-    <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/Constant.cs" Link="Runtime/Constant.cs" />
-    <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/ContainerAnonymous.cs" Link="Runtime/ContainerAnonymous.cs" />
+    <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/Embed.cs" Link="Runtime/Embed.cs" />
+    <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/Anonymous.cs" Link="Runtime/Anonymous.cs" />
+    <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/ContainerKey.cs" Link="Runtime/ContainerKey.cs" />
   </ItemGroup>
 </Project>

@@ -13,7 +13,7 @@ namespace HKFeedbackV2.Actions
         private IResolver<GameObject> gameObject;
 
         [SerializeReference, SubclassSelector]
-        private IResolver<bool> activeState = new Constant<bool>(true);
+        private IResolver<bool> activeState = new Embed<bool>(true);
 
         public UniTask InvokeAsync(IContainer container, CancellationToken cancellationToken)
         {

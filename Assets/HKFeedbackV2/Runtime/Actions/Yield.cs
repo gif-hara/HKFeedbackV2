@@ -10,7 +10,7 @@ namespace HKFeedbackV2.Actions
     public sealed class Yield : IAction
     {
         [SerializeReference, SubclassSelector]
-        private IResolver<PlayerLoopTiming> playerLoopTiming = new Constant<PlayerLoopTiming>(PlayerLoopTiming.Update);
+        private IResolver<PlayerLoopTiming> playerLoopTiming = new Embed<PlayerLoopTiming>(PlayerLoopTiming.Update);
 
         public UniTask InvokeAsync(IContainer container, CancellationToken cancellationToken)
         {

@@ -10,7 +10,7 @@ namespace HKFeedbackV2.Actions
     public sealed class DelayFrame : IAction
     {
         [SerializeReference, SubclassSelector]
-        private IResolver<int> frames = new Constant<int>(0);
+        private IResolver<int> frames = new Embed<int>(0);
 
         public UniTask InvokeAsync(IContainer container, CancellationToken cancellationToken)
         {

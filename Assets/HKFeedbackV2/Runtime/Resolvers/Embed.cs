@@ -4,7 +4,7 @@ using UnityEngine;
 namespace HKFeedbackV2.Resolvers
 {
     [Serializable]
-    public sealed class Constant<T> : IResolver<T>
+    public sealed class Embed<T> : IResolver<T>
     {
         [SerializeField]
         private T value;
@@ -14,7 +14,7 @@ namespace HKFeedbackV2.Resolvers
             return value;
         }
 
-        public Constant(T value)
+        public Embed(T value)
         {
             this.value = value;
         }

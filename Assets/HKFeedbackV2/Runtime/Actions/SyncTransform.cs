@@ -16,13 +16,13 @@ namespace HKFeedbackV2.Actions
         private IResolver<Transform> target;
 
         [SerializeField, SubclassSelector]
-        private IResolver<bool> syncPosition = new Constant<bool>(true);
+        private IResolver<bool> syncPosition = new Embed<bool>(true);
 
         [SerializeField, SubclassSelector]
-        private IResolver<bool> syncRotation = new Constant<bool>(true);
+        private IResolver<bool> syncRotation = new Embed<bool>(true);
 
         [SerializeReference, SubclassSelector]
-        private IResolver<bool> syncScale = new Constant<bool>(true);
+        private IResolver<bool> syncScale = new Embed<bool>(true);
 
         public UniTask InvokeAsync(IContainer container, CancellationToken cancellationToken)
         {

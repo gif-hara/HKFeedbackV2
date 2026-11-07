@@ -10,7 +10,7 @@ namespace HKFeedbackV2.Actions
     public sealed class Delay : IAction
     {
         [SerializeReference, SubclassSelector]
-        private IResolver<float> seconds = new Constant<float>(0.0f);
+        private IResolver<float> seconds = new Embed<float>(0.0f);
 
         public UniTask InvokeAsync(IContainer container, CancellationToken cancellationToken)
         {
