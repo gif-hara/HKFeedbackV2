@@ -24,6 +24,7 @@
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/FeedbackResolverAttribute.cs" Link="Runtime/FeedbackResolverAttribute.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/FeedbackEvaluatorAttribute.cs" Link="Runtime/FeedbackEvaluatorAttribute.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/SerializeField.cs" Link="Runtime/SerializeField.cs" />
+    <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/SerializeReference.cs" Link="Runtime/SerializeReference.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/Anonymous.cs" Link="Runtime/Anonymous.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/ContainerKey.cs" Link="Runtime/ContainerKey.cs" />
   </ItemGroup>

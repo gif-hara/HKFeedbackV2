@@ -65,6 +65,126 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.True(action.GetType().IsDefined(typeof(SerializableAttribute)));
         }
 
+        [Theory]
+        [InlineData("void", "return;")]
+        [InlineData("UniTask", "return UniTask.CompletedTask;")]
+        [InlineData("Task", "return Task.CompletedTask;")]
+        public async Task InterfaceArgumentsAndInterfaceArraysUseSerializeReference(string returnType, string returnStatement)
+        {
+            var assembly = Compile($$"""
+                using HKFeedbackV2;
+                using Cysharp.Threading.Tasks;
+                using System.Threading;
+                using System.Threading.Tasks;
+                public sealed class Condition : IEvaluator
+                {
+                    public bool Result;
+                    public bool Evaluate(IContainer container) => Result;
+                }
+                public static partial class Effects
+                {
+                    public static int Total;
+                    public static IContainer Context;
+                    public static CancellationToken Token;
+                    [FeedbackAction]
+                    private static {{returnType}} Run(IEvaluator condition, IEvaluator[] conditions, int amount = 3,
+                        IContainer context = null, CancellationToken token = default)
+                    {
+                        Total = condition.Evaluate(context) ? amount : 0;
+                        foreach (var item in conditions)
+                            if (item.Evaluate(context)) Total += amount;
+                        Context = context;
+                        Token = token;
+                        {{returnStatement}}
+                    }
+                    [FeedbackAction] private static void Plain(Condition condition, Condition[] conditions) { }
+                }
+                """);
+            var action = CreateAction(assembly, "Effects+Actions+Run");
+            var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+            var condition = Assert.IsType<SerializeReference<IEvaluator>>(action.GetType().GetField("condition", flags)!.GetValue(action));
+            var conditions = Assert.IsType<SerializeReference<IEvaluator[]>>(action.GetType().GetField("conditions", flags)!.GetValue(action));
+            Assert.IsType<SerializeField<int>>(action.GetType().GetField("amount", flags)!.GetValue(action));
+            Assert.Null(action.GetType().GetField("context", flags));
+            Assert.Null(action.GetType().GetField("token", flags));
+            var implementation = assembly.GetType("Condition")!;
+            var truth = (IEvaluator)Activator.CreateInstance(implementation)!;
+            implementation.GetField("Result")!.SetValue(truth, true);
+            var falsity = (IEvaluator)Activator.CreateInstance(implementation)!;
+            condition.GetType().GetField("value", flags)!.SetValue(condition, truth);
+            conditions.GetType().GetField("value", flags)!.SetValue(conditions, new[] { truth, falsity });
+            var container = new Container();
+            using var cancellation = new CancellationTokenSource();
+
+            await action.InvokeAsync(container, cancellation.Token);
+
+            var owner = assembly.GetType("Effects")!;
+            Assert.Equal(6, owner.GetField("Total")!.GetValue(null));
+            Assert.Same(container, owner.GetField("Context")!.GetValue(null));
+            Assert.Equal(cancellation.Token, owner.GetField("Token")!.GetValue(null));
+            var plain = CreateAction(assembly, "Effects+Actions+Plain");
+            foreach (var field in plain.GetType().GetFields(flags))
+                Assert.Equal(typeof(SerializeField<>), field.GetValue(plain)!.GetType().GetGenericTypeDefinition());
+        }
+
+        [Fact]
+        public async Task PrivateInstanceActionUsesSerializeReferenceForInterfaceArguments()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public partial class Effects
+                {
+                    public bool Result;
+                    [FeedbackAction] private void Run(IEvaluator condition, IContainer context)
+                    {
+                        Result = condition.Evaluate(context);
+                    }
+                }
+                public sealed class Condition : IEvaluator
+                {
+                    public bool Evaluate(IContainer container) => container != null;
+                }
+                """);
+            var target = Activator.CreateInstance(assembly.GetType("Effects")!)!;
+            var condition = (IEvaluator)Activator.CreateInstance(assembly.GetType("Condition")!)!;
+            var container = new Container();
+            container.Register(ContainerKey.Anonymous, target);
+            var action = CreateAction(assembly, "Effects+Actions+Run");
+            var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+            Assert.Equal(typeof(Anonymous<>), action.GetType().GetField("_target", flags)!.GetValue(action)!.GetType().GetGenericTypeDefinition());
+            Assert.IsType<SerializeReference<IEvaluator>>(action.GetType().GetField("condition", flags)!.GetValue(action));
+            SetResolver(action, "condition", new SerializeReference<IEvaluator>(condition));
+
+            await action.InvokeAsync(container, default);
+
+            Assert.Equal(true, target.GetType().GetField("Result")!.GetValue(target));
+        }
+
+        [Fact]
+        public void InterfaceArgumentSelectionAppliesToActions()
+        {
+            var assembly = FeedbackGeneratorTestDriver.Compile("""
+                using HKFeedbackV2;
+                public static partial class Effects
+                {
+                    [FeedbackAction] private static void Run(IEvaluator condition, IEvaluator[] conditions) { }
+                    [FeedbackResolver, FeedbackEvaluator]
+                    private static bool Check(IEvaluator condition, IEvaluator[] conditions) => true;
+                }
+                """);
+            foreach (var (typeName, resolverType) in new[]
+            {
+                ("Effects+Actions+Run", typeof(SerializeReference<>)),
+                ("Effects+Resolvers+Check", typeof(SerializeField<>)),
+                ("Effects+Evaluators+Check", typeof(SerializeField<>))
+            })
+            {
+                var instance = Activator.CreateInstance(assembly.GetType(typeName)!)!;
+                foreach (var field in instance.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance))
+                    Assert.Equal(resolverType, field.GetValue(instance)!.GetType().GetGenericTypeDefinition());
+            }
+        }
+
         [Fact]
         public async Task InstanceActionResolvesTargetFromAnonymousContainer()
         {
@@ -888,7 +1008,8 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 typeof(HKFeedbackV2.Actions.AsyncAction).GetField("isWait", flags)!,
                 typeof(Anonymous<int>).GetField("canBeNull", flags)!,
                 typeof(HKFeedbackV2.Resolvers.ContainerKey<int>).GetField("canBeNull", flags)!,
-                typeof(HKFeedbackV2.Resolvers.ContainerKey<int>).GetField("key", flags)!
+                typeof(HKFeedbackV2.Resolvers.ContainerKey<int>).GetField("key", flags)!,
+                typeof(SerializeReference<IEvaluator>).GetField("value", flags)!
             };
             foreach (var field in fields)
             {

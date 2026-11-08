@@ -448,9 +448,12 @@ namespace HKFeedbackV2.SourceGenerator
             {
                 var typeName = TypeName(parameter.Type);
                 var fieldName = definition.ParameterFieldName(parameter);
+                var useSerializeReference = isAction && (parameter.Type.TypeKind == TypeKind.Interface ||
+                    parameter.Type is IArrayTypeSymbol array && array.ElementType.TypeKind == TypeKind.Interface);
+                var resolverType = useSerializeReference ? "SerializeReference" : "SerializeField";
                 RenderSerializeReferenceAttributes(writer);
                 writer.Line("[global::UnityEngine.InspectorName(" + SymbolDisplay.FormatLiteral(parameter.Name, true) + ")]");
-                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.SerializeField<{typeName}>({DefaultValue(parameter)});");
+                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.{resolverType}<{typeName}>({DefaultValue(parameter)});");
                 writer.Line();
             }
 

@@ -480,35 +480,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Test::HKFeedbackV2.Test.TestSceneController
   feedbacks:
-  - rid: 6292669054607425747
+  - rid: -2
   references:
     version: 2
     RefIds:
     - rid: -2
       type: {class: , ns: , asm: }
-    - rid: 6292669054607425747
-      type: {class: Standard/Actions/EvaluateActionAsync, ns: HKFeedbackV2, asm: HKFeedbackV2}
-      data:
-        isWait:
-          rid: 6292669054607425748
-        condition:
-          rid: 6292669054607425751
-        actions:
-          rid: 6292669054607425752
-    - rid: 6292669054607425748
-      type: {class: 'SerializeField`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
-      data:
-        value: 1
-    - rid: 6292669054607425751
-      type: {class: 'SerializeReference`1[[HKFeedbackV2.IEvaluator, HKFeedbackV2]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
-      data:
-        value:
-          rid: -2
-    - rid: 6292669054607425752
-      type: {class: 'SerializeReference`1[[HKFeedbackV2.IAction[], HKFeedbackV2]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
-      data:
-        value:
-        - rid: -2
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
