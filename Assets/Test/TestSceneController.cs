@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HKFeedbackV2.Test
 {
-    public partial class TestSceneController : MonoBehaviour
+    public partial class TestSceneController : MonoBehaviour, IContainerRegister
     {
         [SerializeReference]
 #if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
@@ -35,6 +35,14 @@ namespace HKFeedbackV2.Test
         private void TestArgumentAction(int[] hoge, float fuga)
         {
             Debug.Log($"TestArgumentAction: {hoge}, {fuga}");
+        }
+
+        public void Register(ContainerKey key, IContainerBuilder builder)
+        {
+            builder.Register(key, this);
+            builder.Register(key, transform);
+            builder.Register(key, gameObject);
+            builder.Register<object>(key, this);
         }
     }
 }

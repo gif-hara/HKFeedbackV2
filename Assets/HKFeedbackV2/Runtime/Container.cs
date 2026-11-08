@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace HKFeedbackV2
 {
-    public sealed class Container : IContainer
+    public sealed class Container : IContainer, IContainerBuilder
     {
         private readonly Dictionary<Type, Dictionary<ContainerKey, object>> objects = new();
 
@@ -26,13 +26,20 @@ namespace HKFeedbackV2
 
         public void Register<T>(ContainerKey key, T obj)
         {
-            var t = typeof(T);
-            if (!objects.ContainsKey(t))
+            if (obj is IContainerRegister register)
             {
-                objects[t] = new();
+                register.Register(key, this);
             }
+            else
+            {
+                var t = typeof(T);
+                if (!objects.ContainsKey(t))
+                {
+                    objects[t] = new();
+                }
 
-            objects[t][key] = obj;
+                objects[t][key] = obj;
+            }
         }
 
         public T Resolve<T>(ContainerKey key)
@@ -55,6 +62,17 @@ namespace HKFeedbackV2
 
             value = default;
             return false;
+        }
+
+        void IContainerBuilder.Register<T>(ContainerKey key, T obj)
+        {
+            var t = typeof(T);
+            if (!objects.ContainsKey(t))
+            {
+                objects[t] = new();
+            }
+
+            objects[t][key] = obj;
         }
     }
 }
