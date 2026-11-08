@@ -480,12 +480,41 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Test::HKFeedbackV2.Test.TestSceneController
   feedbacks:
-  - rid: -2
+  - rid: 6292669054607425614
   references:
     version: 2
     RefIds:
-    - rid: -2
-      type: {class: , ns: , asm: }
+    - rid: 6292669054607425614
+      type: {class: TestSceneController/Actions/TestArgumentAction_int_array_float, ns: HKFeedbackV2.Test, asm: Test}
+      data:
+        _target:
+          rid: 6292669054607425615
+        hoge:
+          rid: 6292669054607425621
+        fuga:
+          rid: 6292669054607425622
+    - rid: 6292669054607425615
+      type: {class: 'Anonymous`1[[HKFeedbackV2.Test.TestSceneController, Test]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        canBeNull:
+          rid: 6292669054607425618
+    - rid: 6292669054607425618
+      type: {class: 'Embed`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        value: 0
+    - rid: 6292669054607425621
+      type: {class: 'Embed`1[[System.Int32[], mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        value: 
+    - rid: 6292669054607425622
+      type: {class: 'Anonymous`1[[System.Single, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        canBeNull:
+          rid: 6292669054607425623
+    - rid: 6292669054607425623
+      type: {class: 'Embed`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        value: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

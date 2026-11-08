@@ -49,7 +49,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var action = CreateAction(assembly, "Game.Effects+Actions+Run_int_string_IContainer_CancellationToken");
             var container = new Container();
             using var cancellation = new CancellationTokenSource();
-            SetResolver(action, "_argument0", new Embed<int>(42));
+            SetResolver(action, "value", new Embed<int>(42));
 
             await action.InvokeAsync(container, cancellation.Token);
 
@@ -59,6 +59,12 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.Same(container, effects.GetField("Context")!.GetValue(null));
             Assert.Equal(cancellation.Token, effects.GetField("Token")!.GetValue(null));
             Assert.Equal(2, action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Length);
+            Assert.Equal(new[] { "message", "value" }, action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+                .Select(field => field.Name).OrderBy(name => name));
+            Assert.Equal("_argument0", action.GetType().GetField("value", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .GetCustomAttribute<UnityEngine.Serialization.FormerlySerializedAsAttribute>()!.oldName);
+            Assert.Equal("_argument1", action.GetType().GetField("message", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .GetCustomAttribute<UnityEngine.Serialization.FormerlySerializedAsAttribute>()!.oldName);
             Assert.True(action.GetType().IsDefined(typeof(SerializableAttribute)));
         }
 
@@ -225,7 +231,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             container.Register(ContainerKey.Anonymous, target);
             var action = CreateAction(assembly, "Effects+Actions+" + methodName + "_int_CancellationToken");
             Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
-            SetResolver(action, "_argument0", new Embed<int>(17));
+            SetResolver(action, "value", new Embed<int>(17));
             using var cancellation = new CancellationTokenSource();
 
             await action.InvokeAsync(container, cancellation.Token);
@@ -442,7 +448,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 }
                 """);
             var action = CreateAction(assembly, "Effects+Actions+Play_object");
-            SetResolver(action, "_argument0", new Embed<object>(42));
+            SetResolver(action, "value", new Embed<object>(42));
             await action.InvokeAsync(new Container(), default);
             Assert.Equal("object", assembly.GetType("Effects")!.GetField("Last")!.GetValue(null));
         }
@@ -614,6 +620,112 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 """);
             AssertSuccess(generation);
             Assert.Empty(generation.Result.Results.Single().GeneratedSources);
+        }
+
+        [Fact]
+        public async Task ParameterNamesCanBeKeywordsAndMatchExecutionContextNames()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public static partial class Effects
+                {
+                    public static int Value;
+                    [FeedbackAction] private static void Play(int @event = 2, int container = 3, int cancellationToken = 4)
+                    {
+                        Value = @event * 100 + container * 10 + cancellationToken;
+                    }
+                }
+                """);
+            var action = CreateAction(assembly, "Effects+Actions+Play_int_int_int");
+            SetResolver(action, "event", new Embed<int>(5));
+            await action.InvokeAsync(new Container(), default);
+            Assert.Equal(534, assembly.GetType("Effects")!.GetField("Value")!.GetValue(null));
+            Assert.NotNull(action.GetType().GetField("container", BindingFlags.NonPublic | BindingFlags.Instance));
+            Assert.NotNull(action.GetType().GetField("cancellationToken", BindingFlags.NonPublic | BindingFlags.Instance));
+        }
+
+        [Theory]
+        [InlineData("_target", "__target")]
+        [InlineData("InvokeAsync", "_InvokeAsync")]
+        [InlineData("InvokeAsyncInternal", "_InvokeAsyncInternal")]
+        [InlineData("Play_int", "_Play_int")]
+        [InlineData("ToString", "_ToString")]
+        public async Task ConflictingParameterNamesKeepLabelsAndRemainCallable(string parameterName, string fieldName)
+        {
+            var assembly = Compile($$"""
+                using HKFeedbackV2;
+                public partial class Effects
+                {
+                    public int Value;
+                    [FeedbackAction] private void Play(int @{{parameterName}} = 7) { Value = @{{parameterName}}; }
+                }
+                """);
+            var owner = assembly.GetType("Effects")!;
+            var target = Activator.CreateInstance(owner)!;
+            var container = new Container();
+            container.Register(ContainerKey.Anonymous, target);
+            var action = CreateAction(assembly, "Effects+Actions+Play_int");
+            SetResolver(action, fieldName, new Embed<int>(19));
+            await action.InvokeAsync(container, default);
+            Assert.Equal(19, owner.GetField("Value")!.GetValue(target));
+            var field = action.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+            Assert.Equal(parameterName, field.GetCustomAttribute<UnityEngine.InspectorName>()!.displayName);
+            Assert.Equal("_argument0", field.GetCustomAttribute<UnityEngine.Serialization.FormerlySerializedAsAttribute>()!.oldName);
+        }
+
+        [Fact]
+        public async Task ReceiverAndLegacyFieldNamesCannotStealAnotherParametersSerializedValue()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public partial class Effects
+                {
+                    public int Value;
+                    [FeedbackAction] private void Play(int _target = 1, int __target = 2, int _argument3 = 3, int _argument2 = 4)
+                    {
+                        Value = _target + __target + _argument3 + _argument2;
+                    }
+                }
+                """);
+            var owner = assembly.GetType("Effects")!;
+            var target = Activator.CreateInstance(owner)!;
+            var container = new Container();
+            container.Register(ContainerKey.Anonymous, target);
+            var action = CreateAction(assembly, "Effects+Actions+Play_int_int_int_int");
+            await action.InvokeAsync(container, default);
+            Assert.Equal(10, owner.GetField("Value")!.GetValue(target));
+            var fields = action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
+            var aliases = fields.Select(field => field.GetCustomAttribute<UnityEngine.Serialization.FormerlySerializedAsAttribute>()?.oldName)
+                .Where(name => name != null).ToArray();
+            Assert.Equal(new[] { "_argument0", "_argument1", "_argument2", "_argument3" }, aliases);
+            Assert.All(aliases, alias => Assert.DoesNotContain(alias, fields.Select(field => field.Name)));
+            Assert.NotNull(action.GetType().GetField("__target", BindingFlags.NonPublic | BindingFlags.Instance));
+        }
+
+        [Fact]
+        public async Task ParameterNamedIsWaitDoesNotReplaceInheritedWaitSetting()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                using Cysharp.Threading.Tasks;
+                public static partial class Effects
+                {
+                    public static bool Value;
+                    [FeedbackAction] private static UniTask Play(bool isWait = true)
+                    {
+                        Value = isWait;
+                        return UniTask.CompletedTask;
+                    }
+                }
+                """);
+            var action = CreateAction(assembly, "Effects+Actions+Play_bool");
+            SetResolver(action, "_isWait", new Embed<bool>(false));
+            var container = new Container();
+            await action.InvokeAsync(container, default);
+            Assert.Equal(false, assembly.GetType("Effects")!.GetField("Value")!.GetValue(null));
+            var waitSetting = (IResolver<bool>)typeof(HKFeedbackV2.Actions.AsyncAction)
+                .GetField("isWait", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(action)!;
+            Assert.True(waitSetting.Resolve(container));
         }
 
         private static Generation Run(string source)

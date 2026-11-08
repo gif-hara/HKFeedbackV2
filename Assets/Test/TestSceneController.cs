@@ -29,7 +29,7 @@ namespace HKFeedbackV2.Test
         }
 
         [FeedbackAction]
-        private void TestArgumentAction(int hoge, float fuga)
+        private void TestArgumentAction(int[] hoge, float fuga)
         {
             Debug.Log($"TestArgumentAction: {hoge}, {fuga}");
         }

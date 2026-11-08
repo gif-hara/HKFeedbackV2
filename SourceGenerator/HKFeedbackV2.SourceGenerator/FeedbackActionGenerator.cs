@@ -339,16 +339,17 @@ namespace HKFeedbackV2.SourceGenerator
             {
                 var owner = TypeName(method.ContainingType);
                 writer.Line("[global::UnityEngine.SerializeReference, global::SubclassSelector]");
-                writer.Line($"private global::HKFeedbackV2.IResolver<{owner}> {FieldName(action.Name, "_target")} = new global::HKFeedbackV2.Resolvers.Anonymous<{owner}>();");
+                writer.Line($"private global::HKFeedbackV2.IResolver<{owner}> {action.TargetFieldName} = new global::HKFeedbackV2.Resolvers.Anonymous<{owner}>();");
                 writer.Line();
             }
 
             foreach (var parameter in method.Parameters.Where(p => !IsInjected(p)))
             {
                 var typeName = TypeName(parameter.Type);
+                var fieldName = action.ParameterFieldName(parameter);
                 writer.Line("[global::UnityEngine.SerializeReference, global::SubclassSelector]");
                 writer.Line("[global::UnityEngine.InspectorName(" + SymbolDisplay.FormatLiteral(parameter.Name, true) + ")]");
-                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> {FieldName(action.Name, "_argument" + parameter.Ordinal)} = new global::HKFeedbackV2.Resolvers.Embed<{typeName}>({DefaultValue(parameter)});");
+                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.Embed<{typeName}>({DefaultValue(parameter)});");
                 writer.Line();
             }
 
@@ -365,10 +366,10 @@ namespace HKFeedbackV2.SourceGenerator
                 var name = p.Type.ToDisplayString();
                 return name == ContainerName ? "container"
                     : name == CancellationTokenName ? "cancellationToken"
-                    : "this." + FieldName(action.Name, "_argument" + p.Ordinal) + ".Resolve(container)";
+                    : "this.@" + action.ParameterFieldName(p) + ".Resolve(container)";
             }));
             var receiver = method.IsStatic ? TypeName(method.ContainingType)
-                : "this." + FieldName(action.Name, "_target") + ".Resolve(container)";
+                : "this." + action.TargetFieldName + ".Resolve(container)";
             var invocation = receiver + ".@" + method.Name + "(" + arguments + ")";
 
             if (method.ReturnsVoid)
@@ -425,8 +426,11 @@ namespace HKFeedbackV2.SourceGenerator
 
         private sealed class ActionDefinition
         {
+            private readonly Dictionary<int, string> parameterFields = new Dictionary<int, string>();
+
             public IMethodSymbol Method { get; }
             public string Name { get; }
+            public string TargetFieldName => FieldName(Name, "_target");
             public Location? Location { get; }
             public string FullName => Method.ContainingType.ToDisplayString() + ".Actions." + Name;
 
@@ -435,7 +439,36 @@ namespace HKFeedbackV2.SourceGenerator
                 Method = method;
                 Name = ActionName(method);
                 Location = location;
+
+                var parameters = method.Parameters.Where(parameter => !IsInjected(parameter)).ToArray();
+                var reserved = new HashSet<string>(StringComparer.Ordinal)
+                {
+                    Name, "InvokeAsync", "InvokeAsyncInternal", "Equals", "GetHashCode", "GetType",
+                    "ToString", "MemberwiseClone", "ReferenceEquals", "Finalize"
+                };
+                if (!method.IsStatic) reserved.Add(TargetFieldName);
+                if (method.ReturnType.ToDisplayString() == UniTaskName) reserved.Add("isWait");
+
+                var legacyNames = parameters.ToDictionary(parameter => parameter.Ordinal, LegacyParameterFieldName);
+                var occupied = new HashSet<string>(parameters.Select(parameter => parameter.Name), StringComparer.Ordinal);
+                occupied.UnionWith(reserved);
+                occupied.UnionWith(legacyNames.Values);
+                foreach (var parameter in parameters)
+                {
+                    var fieldName = parameter.Name;
+                    if (reserved.Contains(fieldName) || legacyNames.Any(legacy =>
+                        legacy.Key != parameter.Ordinal && legacy.Value == fieldName))
+                    {
+                        do { fieldName = "_" + fieldName; } while (occupied.Contains(fieldName));
+                    }
+                    parameterFields.Add(parameter.Ordinal, fieldName);
+                    occupied.Add(fieldName);
+                }
             }
+
+            public string ParameterFieldName(IParameterSymbol parameter) => parameterFields[parameter.Ordinal];
+
+            public string LegacyParameterFieldName(IParameterSymbol parameter) => FieldName(Name, "_argument" + parameter.Ordinal);
         }
 
         private sealed class SourceWriter

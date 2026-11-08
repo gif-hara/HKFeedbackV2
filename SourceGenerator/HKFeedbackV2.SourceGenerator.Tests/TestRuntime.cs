@@ -16,7 +16,18 @@ namespace UnityEngine
     [AttributeUsage(AttributeTargets.Field)]
     public sealed class InspectorName : Attribute
     {
-        public InspectorName(string displayName) { }
+        public string displayName { get; }
+        public InspectorName(string displayName) => this.displayName = displayName;
+    }
+}
+
+namespace UnityEngine.Serialization
+{
+    [AttributeUsage(AttributeTargets.Field, AllowMultiple = true)]
+    public sealed class FormerlySerializedAsAttribute : Attribute
+    {
+        public string oldName { get; }
+        public FormerlySerializedAsAttribute(string oldName) => this.oldName = oldName;
     }
 }
 
