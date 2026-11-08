@@ -1,7 +1,9 @@
+using System;
 using UnityEngine;
 
 namespace HKFeedbackV2.Evaluators
 {
+    [Serializable]
     public sealed class Embed : IEvaluator
     {
         [SerializeField]
