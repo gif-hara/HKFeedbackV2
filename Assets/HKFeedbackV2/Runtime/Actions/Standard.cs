@@ -3,7 +3,7 @@ using Cysharp.Threading.Tasks;
 
 namespace HKFeedbackV2
 {
-    public partial class Standard
+    public static partial class Standard
     {
         [FeedbackAction]
         public static async UniTask WhileAsync(IContainer container, IEvaluator condition, IAction[] actions, CancellationToken cancellationToken)
