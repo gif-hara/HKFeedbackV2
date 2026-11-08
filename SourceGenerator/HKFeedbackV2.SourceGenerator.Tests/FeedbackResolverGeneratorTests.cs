@@ -1,30 +1,18 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Loader;
 using System.Threading;
 using System.Threading.Tasks;
 using HKFeedbackV2.Resolvers;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
+using static HKFeedbackV2.SourceGenerator.Tests.FeedbackGeneratorTestDriver;
 
 namespace HKFeedbackV2.SourceGenerator.Tests
 {
     public sealed class FeedbackResolverGeneratorTests
     {
-        private static readonly CSharpParseOptions ParseOptions = new CSharpParseOptions(LanguageVersion.CSharp10);
-        private static readonly ImmutableArray<MetadataReference> References =
-            ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
-                .Append(typeof(IResolver<>).Assembly.Location)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(path => MetadataReference.CreateFromFile(path))
-                .ToImmutableArray<MetadataReference>();
-
         [Fact]
         public void StaticResolverResolvesNamedArgumentsAndInjectsContainerOnEachCall()
         {
@@ -413,60 +401,11 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             }
         }
 
-        private static Generation Run(string source, bool enableSerializeReferenceExtensions = false)
-        {
-            var parseOptions = enableSerializeReferenceExtensions
-                ? ParseOptions.WithPreprocessorSymbols("HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS")
-                : ParseOptions;
-            var syntaxTrees = new List<SyntaxTree> { CSharpSyntaxTree.ParseText(source, parseOptions) };
-            if (enableSerializeReferenceExtensions && typeof(IResolver<>).Assembly.GetType("SubclassSelectorAttribute") == null)
-            {
-                syntaxTrees.Add(CSharpSyntaxTree.ParseText("""
-                    [System.AttributeUsage(System.AttributeTargets.Field)]
-                    public sealed class SubclassSelectorAttribute : System.Attribute { }
-                    """, parseOptions));
-            }
-            var compilation = CSharpCompilation.Create("GeneratedResolvers_" + Guid.NewGuid().ToString("N"),
-                syntaxTrees, References,
-                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
-            GeneratorDriver driver = CSharpGeneratorDriver.Create(
-                new[] { new FeedbackActionGenerator().AsSourceGenerator(), new FeedbackResolverGenerator().AsSourceGenerator() },
-                parseOptions: parseOptions);
-            driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
-            return new Generation(output, driver.GetRunResult(), diagnostics);
-        }
-
-        private static void AssertSuccess(Generation generation)
-        {
-            Assert.Empty(generation.Diagnostics);
-            Assert.Empty(generation.Result.Diagnostics);
-            var errors = generation.Compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
-            Assert.True(!errors.Any(), string.Join(Environment.NewLine, errors));
-        }
-
-        private static Assembly Compile(string source)
-        {
-            var generation = Run(source);
-            AssertSuccess(generation);
-            return Emit(generation);
-        }
-
-        private static Assembly Emit(Generation generation)
-        {
-            using var stream = new MemoryStream();
-            var result = generation.Compilation.Emit(stream);
-            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-            stream.Position = 0;
-            return AssemblyLoadContext.Default.LoadFromStream(stream);
-        }
-
         private static IResolver<T> CreateResolver<T>(Assembly assembly, string name) =>
             (IResolver<T>)Activator.CreateInstance(assembly.GetType(name, throwOnError: true)!)!;
 
         private static void SetField(object instance, string fieldName, object value) => instance.GetType()
             .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(instance, value);
 
-        private sealed record Generation(Compilation Compilation, GeneratorDriverRunResult Result,
-            ImmutableArray<Diagnostic> Diagnostics);
     }
 }

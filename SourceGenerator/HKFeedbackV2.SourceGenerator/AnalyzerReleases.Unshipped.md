@@ -15,3 +15,8 @@ HKFSG009 | HKFeedbackV2.SourceGenerator | Error | Unsupported feedback resolver 
 HKFSG010 | HKFeedbackV2.SourceGenerator | Error | Duplicate resolver class name
 HKFSG011 | HKFeedbackV2.SourceGenerator | Error | Unsupported resolver parameter
 HKFSG012 | HKFeedbackV2.SourceGenerator | Error | Resolver containing classes must be partial
+HKFSG013 | HKFeedbackV2.SourceGenerator | Error | Unsupported feedback evaluator method
+HKFSG014 | HKFeedbackV2.SourceGenerator | Error | Feedback evaluator must return bool
+HKFSG015 | HKFeedbackV2.SourceGenerator | Error | Duplicate evaluator class name
+HKFSG016 | HKFeedbackV2.SourceGenerator | Error | Unsupported evaluator parameter
+HKFSG017 | HKFeedbackV2.SourceGenerator | Error | Evaluator containing classes must be partial

@@ -10,10 +10,18 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace HKFeedbackV2.SourceGenerator
 {
+    internal enum FeedbackKind
+    {
+        Action,
+        Resolver,
+        Evaluator
+    }
+
     internal static class FeedbackGenerator
     {
         private const string ActionAttributeName = "HKFeedbackV2.FeedbackActionAttribute";
         private const string ResolverAttributeName = "HKFeedbackV2.FeedbackResolverAttribute";
+        private const string EvaluatorAttributeName = "HKFeedbackV2.FeedbackEvaluatorAttribute";
         private const string ContainerName = "HKFeedbackV2.IContainer";
         private const string CancellationTokenName = "System.Threading.CancellationToken";
         private const string UniTaskName = "Cysharp.Threading.Tasks.UniTask";
@@ -54,9 +62,39 @@ namespace HKFeedbackV2.SourceGenerator
             "HKFSG012", "Feedback resolver containing class must be partial",
             "Class '{0}' must be declared partial to generate nested resolver classes");
 
-        public static void Initialize(IncrementalGeneratorInitializationContext context, bool isResolver)
+        private static readonly DiagnosticDescriptor UnsupportedEvaluatorMethod = Error(
+            "HKFSG013", "Unsupported feedback evaluator method",
+            "Cannot generate an evaluator for '{0}': {1}");
+        private static readonly DiagnosticDescriptor UnsupportedEvaluatorReturn = Error(
+            "HKFSG014", "Unsupported feedback evaluator return type",
+            "'{0}' must return bool");
+        private static readonly DiagnosticDescriptor DuplicateEvaluatorName = Error(
+            "HKFSG015", "Evaluator class name already exists",
+            "Cannot generate '{0}': its name conflicts with an existing member or another evaluator; rename the conflicting member or method");
+        private static readonly DiagnosticDescriptor UnsupportedEvaluatorParameter = Error(
+            "HKFSG016", "Unsupported feedback evaluator parameter",
+            "Cannot generate a resolver for parameter '{0}' on '{1}': ref, in, out, pointer, ref-like, and open generic types are unsupported");
+        private static readonly DiagnosticDescriptor MissingEvaluatorPartial = Error(
+            "HKFSG017", "Feedback evaluator containing class must be partial",
+            "Class '{0}' must be declared partial to generate nested evaluator classes");
+
+        private static string AttributeName(FeedbackKind kind) => kind switch
         {
-            var attributeName = isResolver ? ResolverAttributeName : ActionAttributeName;
+            FeedbackKind.Resolver => ResolverAttributeName,
+            FeedbackKind.Evaluator => EvaluatorAttributeName,
+            _ => ActionAttributeName
+        };
+
+        private static string ContainerClassName(FeedbackKind kind) => kind switch
+        {
+            FeedbackKind.Resolver => "Resolvers",
+            FeedbackKind.Evaluator => "Evaluators",
+            _ => "Actions"
+        };
+
+        public static void Initialize(IncrementalGeneratorInitializationContext context, FeedbackKind kind)
+        {
+            var attributeName = AttributeName(kind);
             var methods = context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => node is MethodDeclarationSyntax method && method.AttributeLists.Count != 0,
                 (syntaxContext, cancellationToken) =>
@@ -69,18 +107,25 @@ namespace HKFeedbackV2.SourceGenerator
                 .Select(static (method, _) => method!);
 
             context.RegisterSourceOutput(methods.Collect(),
-                (output, collectedMethods) => Generate(output, collectedMethods, isResolver));
+                (output, collectedMethods) => Generate(output, collectedMethods, kind));
         }
 
         private static void Generate(SourceProductionContext context,
-            ImmutableArray<IMethodSymbol> methods, bool isResolver)
+            ImmutableArray<IMethodSymbol> methods, FeedbackKind kind)
         {
             var candidates = new List<FeedbackDefinition>();
             var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
             var reportedPartialClasses = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
-            var attributeName = isResolver ? ResolverAttributeName : ActionAttributeName;
-            var duplicateName = isResolver ? DuplicateResolverName : DuplicateName;
-            var containerClassName = isResolver ? "Resolvers" : "Actions";
+            var attributeName = AttributeName(kind);
+            var containerClassName = ContainerClassName(kind);
+            var (methodRule, returnRule, duplicateName, parameterRule, partialRule) = kind switch
+            {
+                FeedbackKind.Resolver => (UnsupportedResolverMethod, UnsupportedResolverReturn,
+                    DuplicateResolverName, UnsupportedResolverParameter, MissingResolverPartial),
+                FeedbackKind.Evaluator => (UnsupportedEvaluatorMethod, UnsupportedEvaluatorReturn,
+                    DuplicateEvaluatorName, UnsupportedEvaluatorParameter, MissingEvaluatorPartial),
+                _ => (UnsupportedMethod, UnsupportedReturn, DuplicateName, UnsupportedParameter, MissingPartial)
+            };
 
             foreach (var method in methods)
             {
@@ -98,7 +143,7 @@ namespace HKFeedbackV2.SourceGenerator
                 var reason = ValidateMethod(method);
                 if (reason != null)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(isResolver ? UnsupportedResolverMethod : UnsupportedMethod, location,
+                    context.ReportDiagnostic(Diagnostic.Create(methodRule, location,
                         method.ToDisplayString(), reason));
                     continue;
                 }
@@ -115,7 +160,7 @@ namespace HKFeedbackV2.SourceGenerator
                     missingPartial = true;
                     if (reportedPartialClasses.Add(type))
                     {
-                        context.ReportDiagnostic(Diagnostic.Create(isResolver ? MissingResolverPartial : MissingPartial,
+                        context.ReportDiagnostic(Diagnostic.Create(partialRule,
                             type.Locations.FirstOrDefault() ?? location, type.ToDisplayString()));
                     }
                 }
@@ -124,18 +169,22 @@ namespace HKFeedbackV2.SourceGenerator
                     continue;
                 }
 
-                if (!isResolver && method.IsAsync && method.ReturnsVoid)
+                if (kind == FeedbackKind.Action && method.IsAsync && method.ReturnsVoid)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(AsyncVoid, location, method.ToDisplayString()));
                     continue;
                 }
 
                 var returnType = method.ReturnType.ToDisplayString();
-                if (isResolver ? method.ReturnsVoid || !CanResolve(method.ReturnType)
-                    : !method.ReturnsVoid && returnType != UniTaskName && returnType != TaskName)
+                var validReturn = kind switch
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(isResolver ? UnsupportedResolverReturn : UnsupportedReturn,
-                        location, method.ToDisplayString()));
+                    FeedbackKind.Resolver => !method.ReturnsVoid && CanResolve(method.ReturnType),
+                    FeedbackKind.Evaluator => method.ReturnType.SpecialType == SpecialType.System_Boolean,
+                    _ => method.ReturnsVoid || returnType == UniTaskName || returnType == TaskName
+                };
+                if (!validReturn)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(returnRule, location, method.ToDisplayString()));
                     continue;
                 }
 
@@ -145,20 +194,20 @@ namespace HKFeedbackV2.SourceGenerator
                 {
                     foreach (var parameter in invalidParameters)
                     {
-                        context.ReportDiagnostic(Diagnostic.Create(isResolver ? UnsupportedResolverParameter : UnsupportedParameter,
+                        context.ReportDiagnostic(Diagnostic.Create(parameterRule,
                             parameter.Locations.FirstOrDefault() ?? location,
                             parameter.Name, method.ToDisplayString()));
                     }
                     continue;
                 }
 
-                var action = new FeedbackDefinition(method, location, isResolver);
-                if (!isResolver && returnType == UniTaskName && action.Name == "InvokeAsyncInternal")
+                var definition = new FeedbackDefinition(method, location, kind);
+                if (kind == FeedbackKind.Action && returnType == UniTaskName && definition.Name == "InvokeAsyncInternal")
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(DuplicateName, location, action.FullName));
+                    context.ReportDiagnostic(Diagnostic.Create(DuplicateName, location, definition.FullName));
                     continue;
                 }
-                candidates.Add(action);
+                candidates.Add(definition);
             }
 
             foreach (var group in candidates.GroupBy(c => TypeName(c.Method.ContainingType), StringComparer.Ordinal)
@@ -174,26 +223,26 @@ namespace HKFeedbackV2.SourceGenerator
                     continue;
                 }
 
-                var actions = new List<FeedbackDefinition>();
-                foreach (var names in group.GroupBy(action => action.Name, StringComparer.Ordinal)
+                var definitions = new List<FeedbackDefinition>();
+                foreach (var names in group.GroupBy(definition => definition.Name, StringComparer.Ordinal)
                     .OrderBy(names => names.Key, StringComparer.Ordinal))
                 {
                     if (names.Count() > 1)
                     {
-                        foreach (var action in names)
+                        foreach (var definition in names)
                         {
-                            context.ReportDiagnostic(Diagnostic.Create(duplicateName, action.Location, action.FullName));
+                            context.ReportDiagnostic(Diagnostic.Create(duplicateName, definition.Location, definition.FullName));
                         }
                     }
                     else
                     {
-                        actions.Add(names.First());
+                        definitions.Add(names.First());
                     }
                 }
-                if (actions.Count != 0)
+                if (definitions.Count != 0)
                 {
                     var hintName = group.Key.Substring("global::".Length).Replace("@", "") + "." + containerClassName + ".g.cs";
-                    context.AddSource(hintName, SourceText.From(Render(owner, actions, containerClassName), Encoding.UTF8));
+                    context.AddSource(hintName, SourceText.From(Render(owner, definitions, containerClassName), Encoding.UTF8));
                 }
             }
         }
@@ -252,10 +301,10 @@ namespace HKFeedbackV2.SourceGenerator
             return types;
         }
 
-        private static bool IsInjected(IParameterSymbol parameter, bool isResolver)
+        private static bool IsInjected(IParameterSymbol parameter, FeedbackKind kind)
         {
             var typeName = parameter.Type.ToDisplayString();
-            return typeName == ContainerName || (!isResolver && typeName == CancellationTokenName);
+            return typeName == ContainerName || (kind == FeedbackKind.Action && typeName == CancellationTokenName);
         }
 
         private static string GeneratedName(IMethodSymbol method, string attributeName) => method.ContainingType.GetMembers(method.Name)
@@ -316,7 +365,7 @@ namespace HKFeedbackV2.SourceGenerator
             throw new InvalidOperationException("Unsupported feedback parameter type: " + type.ToDisplayString());
         }
 
-        private static string Render(INamedTypeSymbol owner, IEnumerable<FeedbackDefinition> actions, string containerClassName)
+        private static string Render(INamedTypeSymbol owner, IEnumerable<FeedbackDefinition> definitions, string containerClassName)
         {
             var writer = new SourceWriter();
             writer.Line("// <auto-generated/>");
@@ -346,11 +395,12 @@ namespace HKFeedbackV2.SourceGenerator
             }
 
             writer.Open("public static class " + containerClassName);
-            var actionNames = new HashSet<string>(actions.Select(action => action.Name), StringComparer.Ordinal);
-            foreach (var action in actions)
+            var generatedNames = new HashSet<string>(definitions.Select(definition => definition.Name), StringComparer.Ordinal);
+            foreach (var definition in definitions)
             {
-                var previousName = SignatureName(action.Method);
-                RenderFeedback(writer, action, !action.IsResolver && action.Name != previousName && !actionNames.Contains(previousName)
+                var previousName = SignatureName(definition.Method);
+                RenderFeedback(writer, definition, definition.Kind == FeedbackKind.Action &&
+                    definition.Name != previousName && !generatedNames.Contains(previousName)
                     ? string.Join("/", ContainingTypes(owner).Select(type => type.Name)) + "/Actions/" + previousName
                     : null);
             }
@@ -360,13 +410,18 @@ namespace HKFeedbackV2.SourceGenerator
             return writer.ToString();
         }
 
-        private static void RenderFeedback(SourceWriter writer, FeedbackDefinition action, string? previousClassName)
+        private static void RenderFeedback(SourceWriter writer, FeedbackDefinition definition, string? previousClassName)
         {
-            var method = action.Method;
+            var method = definition.Method;
             var returnTypeName = TypeName(method.ReturnType);
-            var isAsyncAction = method.ReturnType.ToDisplayString() == UniTaskName;
-            var baseType = action.IsResolver ? "global::HKFeedbackV2.IResolver<" + returnTypeName + ">"
-                : isAsyncAction ? "global::HKFeedbackV2.Actions.AsyncAction" : "global::HKFeedbackV2.IAction";
+            var isAction = definition.Kind == FeedbackKind.Action;
+            var isAsyncAction = isAction && method.ReturnType.ToDisplayString() == UniTaskName;
+            var baseType = definition.Kind switch
+            {
+                FeedbackKind.Resolver => "global::HKFeedbackV2.IResolver<" + returnTypeName + ">",
+                FeedbackKind.Evaluator => "global::HKFeedbackV2.IEvaluator",
+                _ => isAsyncAction ? "global::HKFeedbackV2.Actions.AsyncAction" : "global::HKFeedbackV2.IAction"
+            };
             writer.Line("[global::System.Serializable]");
             if (previousClassName != null)
             {
@@ -379,49 +434,54 @@ namespace HKFeedbackV2.SourceGenerator
                     SymbolDisplay.FormatLiteral(owner.ContainingAssembly.Name, true) + ", sourceClassName: " +
                     SymbolDisplay.FormatLiteral(previousClassName, true) + ")]");
             }
-            writer.Open("public sealed class @" + action.Name + " : " + baseType);
+            writer.Open("public sealed class @" + definition.Name + " : " + baseType);
 
             if (!method.IsStatic)
             {
                 var owner = TypeName(method.ContainingType);
                 RenderSerializeReferenceAttributes(writer);
-                writer.Line($"private global::HKFeedbackV2.IResolver<{owner}> {action.TargetFieldName} = new global::HKFeedbackV2.Resolvers.Anonymous<{owner}>();");
+                writer.Line($"private global::HKFeedbackV2.IResolver<{owner}> {definition.TargetFieldName} = new global::HKFeedbackV2.Resolvers.Anonymous<{owner}>();");
                 writer.Line();
             }
 
-            foreach (var parameter in method.Parameters.Where(p => !IsInjected(p, action.IsResolver)))
+            foreach (var parameter in method.Parameters.Where(p => !IsInjected(p, definition.Kind)))
             {
                 var typeName = TypeName(parameter.Type);
-                var fieldName = action.ParameterFieldName(parameter);
+                var fieldName = definition.ParameterFieldName(parameter);
                 RenderSerializeReferenceAttributes(writer);
                 writer.Line("[global::UnityEngine.InspectorName(" + SymbolDisplay.FormatLiteral(parameter.Name, true) + ")]");
                 writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.Embed<{typeName}>({DefaultValue(parameter)});");
                 writer.Line();
             }
 
-            var invokeMethod = action.IsResolver
-                ? action.Name == "Resolve"
+            var executionMethod = definition.Kind switch
+            {
+                FeedbackKind.Resolver => definition.Name == "Resolve"
                     ? returnTypeName + " " + baseType + ".Resolve"
-                    : "public " + returnTypeName + " Resolve"
-                : isAsyncAction
-                ? "protected override global::Cysharp.Threading.Tasks.UniTask InvokeAsyncInternal"
-                : action.Name == "InvokeAsync"
-                    ? "global::Cysharp.Threading.Tasks.UniTask global::HKFeedbackV2.IAction.InvokeAsync"
-                    : "public global::Cysharp.Threading.Tasks.UniTask InvokeAsync";
-            writer.Open(invokeMethod + (action.IsResolver
-                ? "(global::HKFeedbackV2.IContainer container)"
-                : "(global::HKFeedbackV2.IContainer container, global::System.Threading.CancellationToken cancellationToken)"));
-            if (!action.IsResolver) writer.Line("cancellationToken.ThrowIfCancellationRequested();");
+                    : "public " + returnTypeName + " Resolve",
+                FeedbackKind.Evaluator => definition.Name == "Evaluate"
+                    ? "bool " + baseType + ".Evaluate"
+                    : "public bool Evaluate",
+                _ => isAsyncAction
+                    ? "protected override global::Cysharp.Threading.Tasks.UniTask InvokeAsyncInternal"
+                    : definition.Name == "InvokeAsync"
+                        ? "global::Cysharp.Threading.Tasks.UniTask global::HKFeedbackV2.IAction.InvokeAsync"
+                        : "public global::Cysharp.Threading.Tasks.UniTask InvokeAsync"
+            };
+            writer.Open(executionMethod + (isAction
+                ? "(global::HKFeedbackV2.IContainer container, global::System.Threading.CancellationToken cancellationToken)"
+                : "(global::HKFeedbackV2.IContainer container)"));
+            if (isAction) writer.Line("cancellationToken.ThrowIfCancellationRequested();");
 
             var arguments = string.Join(", ", method.Parameters.Select(p =>
             {
                 var name = p.Type.ToDisplayString();
                 return name == ContainerName ? "container"
-                    : !action.IsResolver && name == CancellationTokenName ? "cancellationToken"
-                    : "this.@" + action.ParameterFieldName(p) + ".Resolve(container)";
+                    : isAction && name == CancellationTokenName ? "cancellationToken"
+                    : "this.@" + definition.ParameterFieldName(p) + ".Resolve(container)";
             }));
             var receiver = method.IsStatic ? TypeName(method.ContainingType)
-                : "this." + action.TargetFieldName + ".Resolve(container)";
+                : "this." + definition.TargetFieldName + ".Resolve(container)";
             var invocation = receiver + ".@" + method.Name + "(" + arguments + ")";
 
             if (method.ReturnsVoid)
@@ -429,7 +489,7 @@ namespace HKFeedbackV2.SourceGenerator
                 writer.Line(invocation + ";");
                 writer.Line("return global::Cysharp.Threading.Tasks.UniTask.CompletedTask;");
             }
-            else if (action.IsResolver || isAsyncAction)
+            else if (!isAction || isAsyncAction)
             {
                 writer.Line("return " + invocation + ";");
             }
@@ -489,33 +549,34 @@ namespace HKFeedbackV2.SourceGenerator
             private readonly Dictionary<int, string> parameterFields = new Dictionary<int, string>();
 
             public IMethodSymbol Method { get; }
-            public bool IsResolver { get; }
+            public FeedbackKind Kind { get; }
             public string Name { get; }
             public string TargetFieldName => FieldName(Name, "_target");
             public Location? Location { get; }
-            public string FullName => Method.ContainingType.ToDisplayString() +
-                (IsResolver ? ".Resolvers." : ".Actions.") + Name;
+            public string FullName => Method.ContainingType.ToDisplayString() + "." + ContainerClassName(Kind) + "." + Name;
 
-            public FeedbackDefinition(IMethodSymbol method, Location? location, bool isResolver)
+            public FeedbackDefinition(IMethodSymbol method, Location? location, FeedbackKind kind)
             {
                 Method = method;
-                IsResolver = isResolver;
-                Name = GeneratedName(method, isResolver ? ResolverAttributeName : ActionAttributeName);
+                Kind = kind;
+                Name = GeneratedName(method, AttributeName(kind));
                 Location = location;
 
-                var parameters = method.Parameters.Where(parameter => !IsInjected(parameter, isResolver)).ToArray();
+                var parameters = method.Parameters.Where(parameter => !IsInjected(parameter, kind)).ToArray();
                 var reserved = new HashSet<string>(StringComparer.Ordinal)
                 {
                     Name, "Equals", "GetHashCode", "GetType",
                     "ToString", "MemberwiseClone", "ReferenceEquals", "Finalize"
                 };
-                if (isResolver) reserved.Add("Resolve");
+                if (kind == FeedbackKind.Resolver) reserved.Add("Resolve");
+                else if (kind == FeedbackKind.Evaluator) reserved.Add("Evaluate");
                 else reserved.UnionWith(new[] { "InvokeAsync", "InvokeAsyncInternal" });
                 if (!method.IsStatic) reserved.Add(TargetFieldName);
-                if (!isResolver && method.ReturnType.ToDisplayString() == UniTaskName) reserved.Add("isWait");
+                if (kind == FeedbackKind.Action && method.ReturnType.ToDisplayString() == UniTaskName) reserved.Add("isWait");
 
-                var legacyNames = isResolver ? new Dictionary<int, string>()
-                    : parameters.ToDictionary(parameter => parameter.Ordinal, LegacyParameterFieldName);
+                var legacyNames = kind == FeedbackKind.Action
+                    ? parameters.ToDictionary(parameter => parameter.Ordinal, LegacyParameterFieldName)
+                    : new Dictionary<int, string>();
                 var occupied = new HashSet<string>(parameters.Select(parameter => parameter.Name), StringComparer.Ordinal);
                 occupied.UnionWith(reserved);
                 occupied.UnionWith(legacyNames.Values);
