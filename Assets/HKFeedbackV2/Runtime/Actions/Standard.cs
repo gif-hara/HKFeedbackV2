@@ -13,5 +13,18 @@ namespace HKFeedbackV2
                 await actions.InvokeAsync(container, cancellationToken);
             }
         }
+
+        [FeedbackAction]
+        public static UniTask EvaluateActionAsync(IContainer container, IEvaluator condition, IAction[] actions, CancellationToken cancellationToken)
+        {
+            if (condition.Evaluate(container))
+            {
+                return actions.InvokeAsync(container, cancellationToken);
+            }
+            else
+            {
+                return UniTask.CompletedTask;
+            }
+        }
     }
 }
