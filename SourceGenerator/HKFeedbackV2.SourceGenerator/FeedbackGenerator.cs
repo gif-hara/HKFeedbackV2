@@ -23,6 +23,7 @@ namespace HKFeedbackV2.SourceGenerator
         private const string ResolverAttributeName = "HKFeedbackV2.FeedbackResolverAttribute";
         private const string EvaluatorAttributeName = "HKFeedbackV2.FeedbackEvaluatorAttribute";
         private const string ContainerName = "HKFeedbackV2.IContainer";
+        private const string EvaluatorName = "HKFeedbackV2.IEvaluator";
         private const string CancellationTokenName = "System.Threading.CancellationToken";
         private const string UniTaskName = "Cysharp.Threading.Tasks.UniTask";
         private const string TaskName = "System.Threading.Tasks.Task";
@@ -307,6 +308,10 @@ namespace HKFeedbackV2.SourceGenerator
             return typeName == ContainerName || (kind == FeedbackKind.Action && typeName == CancellationTokenName);
         }
 
+        private static bool IsDirectEvaluator(ITypeSymbol type, FeedbackKind kind) => kind == FeedbackKind.Action &&
+            (type.ToDisplayString() == EvaluatorName ||
+                type is IArrayTypeSymbol array && array.ElementType.ToDisplayString() == EvaluatorName);
+
         private static string GeneratedName(IMethodSymbol method, string attributeName) => method.ContainingType.GetMembers(method.Name)
             .OfType<IMethodSymbol>()
             .Count(candidate => candidate.GetAttributes().Any(attribute =>
@@ -448,12 +453,21 @@ namespace HKFeedbackV2.SourceGenerator
             {
                 var typeName = TypeName(parameter.Type);
                 var fieldName = definition.ParameterFieldName(parameter);
-                var useSerializeReference = isAction && (parameter.Type.TypeKind == TypeKind.Interface ||
-                    parameter.Type is IArrayTypeSymbol array && array.ElementType.TypeKind == TypeKind.Interface);
-                var resolverType = useSerializeReference ? "SerializeReference" : "SerializeField";
                 RenderSerializeReferenceAttributes(writer);
                 writer.Line("[global::UnityEngine.InspectorName(" + SymbolDisplay.FormatLiteral(parameter.Name, true) + ")]");
-                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.{resolverType}<{typeName}>({DefaultValue(parameter)});");
+                if (IsDirectEvaluator(parameter.Type, definition.Kind))
+                {
+                    var defaultValue = parameter.Type is IArrayTypeSymbol ? DefaultValue(parameter)
+                        : "new global::HKFeedbackV2.Evaluators.Constant(true)";
+                    writer.Line($"private {typeName} @{fieldName} = {defaultValue};");
+                }
+                else
+                {
+                    var useSerializeReference = isAction && (parameter.Type.TypeKind == TypeKind.Interface ||
+                        parameter.Type is IArrayTypeSymbol array && array.ElementType.TypeKind == TypeKind.Interface);
+                    var resolverType = useSerializeReference ? "SerializeReference" : "SerializeField";
+                    writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.{resolverType}<{typeName}>({DefaultValue(parameter)});");
+                }
                 writer.Line();
             }
 
@@ -481,6 +495,7 @@ namespace HKFeedbackV2.SourceGenerator
                 var name = p.Type.ToDisplayString();
                 return name == ContainerName ? "container"
                     : isAction && name == CancellationTokenName ? "cancellationToken"
+                    : IsDirectEvaluator(p.Type, definition.Kind) ? "this.@" + definition.ParameterFieldName(p)
                     : "this.@" + definition.ParameterFieldName(p) + ".Resolve(container)";
             }));
             var receiver = method.IsStatic ? TypeName(method.ContainingType)

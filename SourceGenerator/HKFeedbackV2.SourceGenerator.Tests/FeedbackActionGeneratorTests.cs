@@ -69,7 +69,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         [InlineData("void", "return;")]
         [InlineData("UniTask", "return UniTask.CompletedTask;")]
         [InlineData("Task", "return Task.CompletedTask;")]
-        public async Task InterfaceArgumentsAndInterfaceArraysUseSerializeReference(string returnType, string returnStatement)
+        public async Task EvaluatorArgumentsAndArraysAreStoredDirectly(string returnType, string returnStatement)
         {
             var assembly = Compile($$"""
                 using HKFeedbackV2;
@@ -102,8 +102,12 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 """);
             var action = CreateAction(assembly, "Effects+Actions+Run");
             var flags = BindingFlags.NonPublic | BindingFlags.Instance;
-            var condition = Assert.IsType<SerializeReference<IEvaluator>>(action.GetType().GetField("condition", flags)!.GetValue(action));
-            var conditions = Assert.IsType<SerializeReference<IEvaluator[]>>(action.GetType().GetField("conditions", flags)!.GetValue(action));
+            var conditionField = action.GetType().GetField("condition", flags)!;
+            var conditionsField = action.GetType().GetField("conditions", flags)!;
+            Assert.Equal(typeof(IEvaluator), conditionField.FieldType);
+            Assert.Equal(typeof(IEvaluator[]), conditionsField.FieldType);
+            Assert.True(Assert.IsType<HKFeedbackV2.Evaluators.Constant>(conditionField.GetValue(action)).Evaluate(new Container()));
+            Assert.Null(conditionsField.GetValue(action));
             Assert.IsType<SerializeField<int>>(action.GetType().GetField("amount", flags)!.GetValue(action));
             Assert.Null(action.GetType().GetField("context", flags));
             Assert.Null(action.GetType().GetField("token", flags));
@@ -111,8 +115,8 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var truth = (IEvaluator)Activator.CreateInstance(implementation)!;
             implementation.GetField("Result")!.SetValue(truth, true);
             var falsity = (IEvaluator)Activator.CreateInstance(implementation)!;
-            condition.GetType().GetField("value", flags)!.SetValue(condition, truth);
-            conditions.GetType().GetField("value", flags)!.SetValue(conditions, new[] { truth, falsity });
+            conditionField.SetValue(action, truth);
+            conditionsField.SetValue(action, new[] { truth, falsity });
             var container = new Container();
             using var cancellation = new CancellationTokenSource();
 
@@ -128,7 +132,37 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         }
 
         [Fact]
-        public async Task PrivateInstanceActionUsesSerializeReferenceForInterfaceArguments()
+        public async Task DirectEvaluatorDefaultsToTrueAndCanBeReplacedWithFalse()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public static partial class Effects
+                {
+                    public static bool Result;
+                    [FeedbackAction] private static void Run(IEvaluator condition, IContainer context)
+                    {
+                        Result = condition.Evaluate(context);
+                    }
+                }
+                """);
+            var action = CreateAction(assembly, "Effects+Actions+Run");
+            var field = action.GetType().GetField("condition", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            Assert.IsType<HKFeedbackV2.Evaluators.Constant>(field.GetValue(action));
+            var container = new Container();
+
+            await action.InvokeAsync(container, default);
+
+            var result = assembly.GetType("Effects")!.GetField("Result")!;
+            Assert.Equal(true, result.GetValue(null));
+            field.SetValue(action, new HKFeedbackV2.Evaluators.Constant(false));
+            await action.InvokeAsync(container, default);
+            Assert.Equal(false, result.GetValue(null));
+            var inspectorInstance = (IEvaluator)Activator.CreateInstance(typeof(HKFeedbackV2.Evaluators.Constant))!;
+            Assert.True(inspectorInstance.Evaluate(container));
+        }
+
+        [Fact]
+        public async Task PrivateInstanceActionPassesItsEvaluatorFieldDirectly()
         {
             var assembly = Compile("""
                 using HKFeedbackV2;
@@ -152,8 +186,8 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var action = CreateAction(assembly, "Effects+Actions+Run");
             var flags = BindingFlags.NonPublic | BindingFlags.Instance;
             Assert.Equal(typeof(Anonymous<>), action.GetType().GetField("_target", flags)!.GetValue(action)!.GetType().GetGenericTypeDefinition());
-            Assert.IsType<SerializeReference<IEvaluator>>(action.GetType().GetField("condition", flags)!.GetValue(action));
-            SetResolver(action, "condition", new SerializeReference<IEvaluator>(condition));
+            Assert.Equal(typeof(IEvaluator), action.GetType().GetField("condition", flags)!.FieldType);
+            SetResolver(action, "condition", condition);
 
             await action.InvokeAsync(container, default);
 
@@ -167,9 +201,9 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 using HKFeedbackV2;
                 public static partial class Effects
                 {
-                    [FeedbackAction] private static void Run(IEvaluator condition, IEvaluator[] conditions) { }
+                    [FeedbackAction] private static void Run(IResolver<bool> condition, IAction[] actions) { }
                     [FeedbackResolver, FeedbackEvaluator]
-                    private static bool Check(IEvaluator condition, IEvaluator[] conditions) => true;
+                    private static bool Check(IResolver<bool> condition, IAction[] actions) => true;
                 }
                 """);
             foreach (var (typeName, resolverType) in new[]
@@ -182,6 +216,63 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 var instance = Activator.CreateInstance(assembly.GetType(typeName)!)!;
                 foreach (var field in instance.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance))
                     Assert.Equal(resolverType, field.GetValue(instance)!.GetType().GetGenericTypeDefinition());
+            }
+        }
+
+        [Theory]
+        [InlineData("Run", "_Run")]
+        [InlineData("InvokeAsync", "_InvokeAsync")]
+        [InlineData("event", "event")]
+        public async Task DirectEvaluatorFieldsPreserveNamesAndTheOriginalArgument(string parameterName, string fieldName)
+        {
+            var assembly = Compile($$"""
+                using HKFeedbackV2;
+                public static partial class Effects
+                {
+                    public static IEvaluator Received;
+                    [FeedbackAction] private static void Run(IEvaluator @{{parameterName}} = null)
+                    {
+                        Received = @{{parameterName}};
+                    }
+                }
+                public sealed class Condition : IEvaluator
+                {
+                    public bool Evaluate(IContainer container) => throw new System.InvalidOperationException("Do not evaluate while passing the argument.");
+                }
+                """);
+            var action = CreateAction(assembly, "Effects+Actions+Run");
+            var condition = (IEvaluator)Activator.CreateInstance(assembly.GetType("Condition")!)!;
+            var field = action.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+            Assert.Equal(typeof(IEvaluator), field.FieldType);
+            Assert.Equal(parameterName, field.GetCustomAttribute<UnityEngine.InspectorName>()!.displayName);
+            field.SetValue(action, condition);
+
+            await action.InvokeAsync(new Container(), default);
+
+            Assert.Same(condition, assembly.GetType("Effects")!.GetField("Received")!.GetValue(null));
+        }
+
+        [Fact]
+        public void EvaluatorFieldsAreDirectInActionsAndRemainResolversInOtherGenerators()
+        {
+            var assembly = FeedbackGeneratorTestDriver.Compile("""
+                using HKFeedbackV2;
+                public static partial class Effects
+                {
+                    [FeedbackAction] private static void Run(IEvaluator condition, IEvaluator[] conditions) { }
+                    [FeedbackResolver, FeedbackEvaluator]
+                    private static bool Check(IEvaluator condition, IEvaluator[] conditions) => true;
+                }
+                """);
+            var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+            var action = Activator.CreateInstance(assembly.GetType("Effects+Actions+Run")!)!;
+            Assert.Equal(typeof(IEvaluator), action.GetType().GetField("condition", flags)!.FieldType);
+            Assert.Equal(typeof(IEvaluator[]), action.GetType().GetField("conditions", flags)!.FieldType);
+            foreach (var name in new[] { "Effects+Resolvers+Check", "Effects+Evaluators+Check" })
+            {
+                var instance = Activator.CreateInstance(assembly.GetType(name)!)!;
+                foreach (var field in instance.GetType().GetFields(flags))
+                    Assert.Equal(typeof(SerializeField<>), field.GetValue(instance)!.GetType().GetGenericTypeDefinition());
             }
         }
 
@@ -971,7 +1062,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 using HKFeedbackV2;
                 public partial class Effects
                 {
-                    [FeedbackAction] private void Play(int value) { }
+                    [FeedbackAction] private void Play(int value, IEvaluator condition, IEvaluator[] conditions) { }
                     [FeedbackAction] private static void Log(string message) { }
                 }
                 """;
@@ -986,7 +1077,9 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
                 .Concat(assembly.GetType("Effects+Actions+Log")!
                     .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)).ToArray();
-            Assert.Equal(3, fields.Length);
+            Assert.Equal(5, fields.Length);
+            Assert.Equal(typeof(IEvaluator), fields.Single(field => field.Name == "condition").FieldType);
+            Assert.Equal(typeof(IEvaluator[]), fields.Single(field => field.Name == "conditions").FieldType);
             foreach (var field in fields)
             {
                 Assert.True(field.IsDefined(typeof(UnityEngine.SerializeReference)));
