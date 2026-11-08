@@ -21,6 +21,24 @@ namespace UnityEngine
     }
 }
 
+namespace UnityEngine.Scripting.APIUpdating
+{
+    [AttributeUsage(AttributeTargets.Class)]
+    public sealed class MovedFromAttribute : Attribute
+    {
+        public string? SourceNamespace { get; }
+        public string? SourceAssembly { get; }
+        public string? SourceClassName { get; }
+        public MovedFromAttribute(bool autoUpdateAPI, string? sourceNamespace = null,
+            string? sourceAssembly = null, string? sourceClassName = null)
+        {
+            SourceNamespace = sourceNamespace;
+            SourceAssembly = sourceAssembly;
+            SourceClassName = sourceClassName;
+        }
+    }
+}
+
 #if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class SubclassSelectorAttribute : Attribute { }

@@ -236,7 +236,14 @@ namespace HKFeedbackV2.SourceGenerator
             return typeName == ContainerName || typeName == CancellationTokenName;
         }
 
-        private static string ActionName(IMethodSymbol method) => method.Parameters.Length == 0
+        private static string ActionName(IMethodSymbol method) => method.ContainingType.GetMembers(method.Name)
+            .OfType<IMethodSymbol>()
+            .Count(candidate => candidate.GetAttributes().Any(attribute =>
+                attribute.AttributeClass?.ToDisplayString() == AttributeName)) <= 1
+                ? method.Name
+                : SignatureActionName(method);
+
+        private static string SignatureActionName(IMethodSymbol method) => method.Parameters.Length == 0
             ? method.Name
             : method.Name + "_" + string.Join("_", method.Parameters.Select(parameter => ParameterTypeName(parameter.Type)));
 
@@ -317,9 +324,13 @@ namespace HKFeedbackV2.SourceGenerator
             }
 
             writer.Open("public static class Actions");
+            var actionNames = new HashSet<string>(actions.Select(action => action.Name), StringComparer.Ordinal);
             foreach (var action in actions)
             {
-                RenderAction(writer, action);
+                var previousName = SignatureActionName(action.Method);
+                RenderAction(writer, action, action.Name != previousName && !actionNames.Contains(previousName)
+                    ? string.Join("/", ContainingTypes(owner).Select(type => type.Name)) + "/Actions/" + previousName
+                    : null);
             }
             writer.Close();
             foreach (var _ in ContainingTypes(owner)) writer.Close();
@@ -327,12 +338,23 @@ namespace HKFeedbackV2.SourceGenerator
             return writer.ToString();
         }
 
-        private static void RenderAction(SourceWriter writer, ActionDefinition action)
+        private static void RenderAction(SourceWriter writer, ActionDefinition action, string? previousClassName)
         {
             var method = action.Method;
             var isAsyncAction = method.ReturnType.ToDisplayString() == UniTaskName;
             var baseType = isAsyncAction ? "global::HKFeedbackV2.Actions.AsyncAction" : "global::HKFeedbackV2.IAction";
             writer.Line("[global::System.Serializable]");
+            if (previousClassName != null)
+            {
+                var owner = method.ContainingType;
+                var sourceNamespace = owner.ContainingNamespace.IsGlobalNamespace ? ""
+                    : owner.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat
+                        .WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.None));
+                writer.Line("[global::UnityEngine.Scripting.APIUpdating.MovedFrom(false, sourceNamespace: " +
+                    SymbolDisplay.FormatLiteral(sourceNamespace, true) + ", sourceAssembly: " +
+                    SymbolDisplay.FormatLiteral(owner.ContainingAssembly.Name, true) + ", sourceClassName: " +
+                    SymbolDisplay.FormatLiteral(previousClassName, true) + ")]");
+            }
             writer.Open("public sealed class @" + action.Name + " : " + baseType);
 
             if (!method.IsStatic)

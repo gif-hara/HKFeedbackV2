@@ -38,7 +38,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     public static string Message;
                     public static IContainer Context;
                     public static CancellationToken Token;
-                    public static IAction CreateAction() => new Effects.Actions.Run_int_string_IContainer_CancellationToken();
+                    public static IAction CreateAction() => new Effects.Actions.Run();
                     [FeedbackAction]
                     public static void Run(int value = 3, string message = "hello",
                         IContainer context = null, CancellationToken token = default)
@@ -47,7 +47,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     }
                 }
                 """);
-            var action = CreateAction(assembly, "Game.Effects+Actions+Run_int_string_IContainer_CancellationToken");
+            var action = CreateAction(assembly, "Game.Effects+Actions+Run");
             var container = new Container();
             using var cancellation = new CancellationTokenSource();
             SetResolver(action, "value", new Embed<int>(42));
@@ -81,7 +81,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var target = Activator.CreateInstance(assembly.GetType("Game.Effects")!)!;
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
-            var action = CreateAction(assembly, "Game.Effects+Actions+Add_int");
+            var action = CreateAction(assembly, "Game.Effects+Actions+Add");
 
             await action.InvokeAsync(container, default);
 
@@ -182,7 +182,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     }
                 }
                 """);
-            var action = CreateAction(assembly, "Effects+Actions+Run_IContainer_CancellationToken");
+            var action = CreateAction(assembly, "Effects+Actions+Run");
             Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
             typeof(HKFeedbackV2.Actions.AsyncAction).GetField("isWait", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .SetValue(action, new Embed<bool>(false));
@@ -203,7 +203,6 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         [Theory]
         [InlineData("Run")]
         [InlineData("InvokeAsync")]
-        [InlineData("InvokeAsyncInternal")]
         public async Task UniTaskInstanceActionResolvesTargetAndArguments(string methodName)
         {
             var assembly = Compile($$"""
@@ -226,7 +225,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var target = Activator.CreateInstance(owner)!;
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
-            var action = CreateAction(assembly, "Effects+Actions+" + methodName + "_int_CancellationToken");
+            var action = CreateAction(assembly, "Effects+Actions+" + methodName);
             Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
             SetResolver(action, "value", new Embed<int>(17));
             using var cancellation = new CancellationTokenSource();
@@ -237,15 +236,17 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.Equal(cancellation.Token, owner.GetField("Token")!.GetValue(target));
         }
 
-        [Fact]
-        public void UniTaskMethodNamedLikeRequiredOverrideIsDiagnosed()
+        [Theory]
+        [InlineData("")]
+        [InlineData("int value")]
+        public void UniTaskMethodNamedLikeRequiredOverrideIsDiagnosed(string parameters)
         {
-            var generation = Run("""
+            var generation = Run($$"""
                 using HKFeedbackV2;
                 using Cysharp.Threading.Tasks;
                 public partial class Effects
                 {
-                    [FeedbackAction] private UniTask InvokeAsyncInternal() => UniTask.CompletedTask;
+                    [FeedbackAction] private UniTask InvokeAsyncInternal({{parameters}}) => UniTask.CompletedTask;
                 }
                 """);
             Assert.Equal("HKFSG004", Assert.Single(generation.Result.Diagnostics).Id);
@@ -290,9 +291,9 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             AssertSuccess(generation);
             Assert.Single(generation.Result.Results.Single().GeneratedSources);
             var code = string.Join("\n", generation.Result.Results.Single().GeneratedSources.Select(s => s.SourceText));
-            Assert.Contains("class @switch_int :", code);
-            Assert.Contains("class @RunString_string :", code);
-            Assert.Contains("class @RunNumber_int :", code);
+            Assert.Contains("class @switch :", code);
+            Assert.Contains("class @RunString :", code);
+            Assert.Contains("class @RunNumber :", code);
             Assert.Contains(".@switch(", code);
         }
 
@@ -379,12 +380,15 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 public partial class Effects
                 {
                     [FeedbackAction] public static void Play(int value) { }
+                    [FeedbackAction] public static void Play(string message) { }
                     [FeedbackAction] public static void Play_int() { }
                 }
                 """);
             Assert.Equal(2, generation.Result.Diagnostics.Length);
             Assert.All(generation.Result.Diagnostics, d => Assert.Equal("HKFSG004", d.Id));
-            Assert.Empty(generation.Result.Results.Single().GeneratedSources);
+            var source = Assert.Single(generation.Result.Results.Single().GeneratedSources).SourceText.ToString();
+            Assert.Contains("class @Play_string :", source);
+            Assert.DoesNotContain("class @Play_int :", source);
         }
 
         [Theory]
@@ -403,6 +407,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 using HKFeedbackV2;
                 public static partial class Effects
                 {
+                    [FeedbackAction] private static void Play() { }
                     [FeedbackAction] private static void Play({{parameterType}} value) { }
                 }
                 """);
@@ -410,7 +415,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         }
 
         [Fact]
-        public void AddingOverloadsAndRenamingParametersKeepExistingActionNames()
+        public void OnlyOverloadedMethodsUseParameterTypesInClassNames()
         {
             var single = Compile("""
                 using HKFeedbackV2;
@@ -427,9 +432,124 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     [FeedbackAction] public static void Play(int renamed) { }
                 }
                 """);
-            Assert.NotNull(single.GetType("Effects+Actions+Play_int"));
+            Assert.NotNull(single.GetType("Effects+Actions+Play"));
+            Assert.Null(single.GetType("Effects+Actions+Play_int"));
+            Assert.Null(multiple.GetType("Effects+Actions+Play"));
             Assert.NotNull(multiple.GetType("Effects+Actions+Play_int"));
             Assert.NotNull(multiple.GetType("Effects+Actions+Play_string"));
+        }
+
+        [Fact]
+        public void UnannotatedOverloadsAndOtherOwnersDoNotChangeActionNames()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public partial class First
+                {
+                    [FeedbackAction] public static void Play(int value) { }
+                    public static void Play(string message) { }
+                }
+                public partial class Second
+                {
+                    [FeedbackAction] public static void Play(string message) { }
+                }
+                """);
+            Assert.NotNull(assembly.GetType("First+Actions+Play"));
+            Assert.NotNull(assembly.GetType("Second+Actions+Play"));
+            Assert.Null(assembly.GetType("First+Actions+Play_int"));
+            Assert.Null(assembly.GetType("Second+Actions+Play_string"));
+        }
+
+        [Fact]
+        public void OverloadsAcrossPartialDeclarationsUseParameterTypes()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public partial class Effects
+                {
+                    [FeedbackAction] public static void Play(int count) { }
+                }
+                public partial class Effects
+                {
+                    [FeedbackAction] public static void Play(string message) { }
+                    [FeedbackAction] public static void Stop(int count) { }
+                }
+                """);
+            Assert.Null(assembly.GetType("Effects+Actions+Play"));
+            Assert.NotNull(assembly.GetType("Effects+Actions+Play_int"));
+            Assert.NotNull(assembly.GetType("Effects+Actions+Play_string"));
+            Assert.NotNull(assembly.GetType("Effects+Actions+Stop"));
+        }
+
+        [Theory]
+        [InlineData("", "")]
+        [InlineData("namespace Game;", "Game")]
+        [InlineData("namespace @event.Game;", "event.Game")]
+        public void ShortenedClassNamesKeepPreviousSerializedTypeNames(string namespaceDeclaration, string namespaceName)
+        {
+            var assembly = Compile($$"""
+                using HKFeedbackV2;
+                {{namespaceDeclaration}}
+                public partial class Outer
+                {
+                    public partial class Effects
+                    {
+                        [FeedbackAction] public static void Play(int count) { }
+                        [FeedbackAction] public static void Stop() { }
+                    }
+                }
+                """);
+            var prefix = namespaceName.Length == 0 ? "" : namespaceName + ".";
+            var action = assembly.GetType(prefix + "Outer+Effects+Actions+Play")!;
+            var migration = action.GetCustomAttribute<UnityEngine.Scripting.APIUpdating.MovedFromAttribute>()!;
+            Assert.Equal("Outer/Effects/Actions/Play_int", migration.SourceClassName);
+            Assert.Equal(namespaceName, migration.SourceNamespace);
+            Assert.Equal(assembly.GetName().Name, migration.SourceAssembly);
+            Assert.Null(assembly.GetType(prefix + "Outer+Effects+Actions+Stop")!
+                .GetCustomAttribute<UnityEngine.Scripting.APIUpdating.MovedFromAttribute>());
+        }
+
+        [Fact]
+        public void SerializedTypeMigrationDoesNotOverrideAnExistingActionName()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public partial class Effects
+                {
+                    [FeedbackAction] public static void Play(int count) { }
+                    [FeedbackAction] public static void Play_int() { }
+                }
+                """);
+            Assert.NotNull(assembly.GetType("Effects+Actions+Play_int"));
+            Assert.Null(assembly.GetType("Effects+Actions+Play")!
+                .GetCustomAttribute<UnityEngine.Scripting.APIUpdating.MovedFromAttribute>());
+        }
+
+        [Fact]
+        public async Task UniTaskOverloadsNamedLikeRequiredOverrideRemainCallable()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                using Cysharp.Threading.Tasks;
+                public static partial class Effects
+                {
+                    public static int Value;
+                    [FeedbackAction] private static UniTask InvokeAsyncInternal(int value = 7)
+                    {
+                        Value = value;
+                        return UniTask.CompletedTask;
+                    }
+                    [FeedbackAction] private static UniTask InvokeAsyncInternal(string value = "hello")
+                    {
+                        Value = value.Length;
+                        return UniTask.CompletedTask;
+                    }
+                }
+                """);
+            await CreateAction(assembly, "Effects+Actions+InvokeAsyncInternal_int").InvokeAsync(new Container(), default);
+            Assert.Equal(7, assembly.GetType("Effects")!.GetField("Value")!.GetValue(null));
+            await CreateAction(assembly, "Effects+Actions+InvokeAsyncInternal_string").InvokeAsync(new Container(), default);
+            Assert.Equal(5, assembly.GetType("Effects")!.GetField("Value")!.GetValue(null));
         }
 
         [Fact]
@@ -577,7 +697,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var target = Activator.CreateInstance(owner)!;
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
-            await CreateAction(assembly, "Effects+Actions+" + methodName + "_int").InvokeAsync(container, default);
+            await CreateAction(assembly, "Effects+Actions+" + methodName).InvokeAsync(container, default);
             Assert.Equal(5, owner.GetField("Count")!.GetValue(target));
         }
 
@@ -633,7 +753,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     }
                 }
                 """);
-            var action = CreateAction(assembly, "Effects+Actions+Play_int_int_int");
+            var action = CreateAction(assembly, "Effects+Actions+Play");
             SetResolver(action, "event", new Embed<int>(5));
             await action.InvokeAsync(new Container(), default);
             Assert.Equal(534, assembly.GetType("Effects")!.GetField("Value")!.GetValue(null));
@@ -645,7 +765,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         [InlineData("_target", "__target")]
         [InlineData("InvokeAsync", "_InvokeAsync")]
         [InlineData("InvokeAsyncInternal", "_InvokeAsyncInternal")]
-        [InlineData("Play_int", "_Play_int")]
+        [InlineData("Play", "_Play")]
         [InlineData("ToString", "_ToString")]
         public async Task ConflictingParameterNamesKeepLabelsAndRemainCallable(string parameterName, string fieldName)
         {
@@ -661,7 +781,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var target = Activator.CreateInstance(owner)!;
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
-            var action = CreateAction(assembly, "Effects+Actions+Play_int");
+            var action = CreateAction(assembly, "Effects+Actions+Play");
             SetResolver(action, fieldName, new Embed<int>(19));
             await action.InvokeAsync(container, default);
             Assert.Equal(19, owner.GetField("Value")!.GetValue(target));
@@ -687,7 +807,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var target = Activator.CreateInstance(owner)!;
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
-            var action = CreateAction(assembly, "Effects+Actions+Play_int_int_int_int");
+            var action = CreateAction(assembly, "Effects+Actions+Play");
             await action.InvokeAsync(container, default);
             Assert.Equal(10, owner.GetField("Value")!.GetValue(target));
             var fields = action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
@@ -712,7 +832,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     }
                 }
                 """);
-            var action = CreateAction(assembly, "Effects+Actions+Play_bool");
+            var action = CreateAction(assembly, "Effects+Actions+Play");
             SetResolver(action, "_isWait", new Embed<bool>(false));
             var container = new Container();
             await action.InvokeAsync(container, default);
@@ -742,9 +862,9 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 Assert.Null(generation.Compilation.GetTypeByMetadataName("SubclassSelectorAttribute"));
             }
             var assembly = Emit(generation);
-            var fields = assembly.GetType("Effects+Actions+Play_int")!
+            var fields = assembly.GetType("Effects+Actions+Play")!
                 .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
-                .Concat(assembly.GetType("Effects+Actions+Log_string")!
+                .Concat(assembly.GetType("Effects+Actions+Log")!
                     .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)).ToArray();
             Assert.Equal(3, fields.Length);
             foreach (var field in fields)

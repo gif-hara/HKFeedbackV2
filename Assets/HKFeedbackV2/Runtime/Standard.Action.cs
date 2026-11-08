@@ -1,19 +1,14 @@
-using UnityEngine;
-
 namespace HKFeedbackV2
 {
     public partial class Standard
     {
-        [FeedbackAction]
-        public void Log(string message)
+        public partial class Debug
         {
-            Debug.Log(message);
-        }
-
-        [FeedbackAction]
-        public void Log(string message, Object context)
-        {
-            Debug.Log(message, context);
+            [FeedbackAction]
+            public void Log(string message)
+            {
+                UnityEngine.Debug.Log(message);
+            }
         }
     }
 }
