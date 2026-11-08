@@ -1,11 +1,11 @@
 namespace HKFeedbackV2
 {
-    public partial class Standard
+    public static partial class Standard
     {
-        public partial class Debug
+        public static partial class Debug
         {
             [FeedbackAction]
-            public void Log(string message)
+            public static void Log(string message)
             {
                 UnityEngine.Debug.Log(message);
             }

@@ -127,8 +127,94 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.Same(container, owner.GetField("Context")!.GetValue(null));
             Assert.Equal(cancellation.Token, owner.GetField("Token")!.GetValue(null));
             var plain = CreateAction(assembly, "Effects+Actions+Plain");
-            foreach (var field in plain.GetType().GetFields(flags))
-                Assert.Equal(typeof(SerializeField<>), field.GetValue(plain)!.GetType().GetGenericTypeDefinition());
+            Assert.Equal(typeof(Anonymous<>), plain.GetType().GetField("condition", flags)!.GetValue(plain)!.GetType().GetGenericTypeDefinition());
+            Assert.Equal(typeof(SerializeField<>), plain.GetType().GetField("conditions", flags)!.GetValue(plain)!.GetType().GetGenericTypeDefinition());
+        }
+
+        [Theory]
+        [InlineData("void", "return;")]
+        [InlineData("UniTask", "return UniTask.CompletedTask;")]
+        [InlineData("Task", "return Task.CompletedTask;")]
+        public async Task ConcreteClassArgumentsResolveFromAnonymousContainerOnEveryInvocation(string returnType, string returnStatement)
+        {
+            var assembly = Compile($$"""
+                using HKFeedbackV2;
+                using Cysharp.Threading.Tasks;
+                using System.Threading;
+                using System.Threading.Tasks;
+                public sealed class Payload
+                {
+                    public int Value;
+                    public Payload(int value) { Value = value; }
+                }
+                public static partial class Effects
+                {
+                    public static int Result;
+                    public static IContainer Context;
+                    public static CancellationToken Token;
+                    [FeedbackAction]
+                    private static {{returnType}} Run(Payload payload, string text = "ok", int amount = 3,
+                        IContainer context = null, CancellationToken token = default)
+                    {
+                        Result = payload.Value + text.Length + amount;
+                        Context = context;
+                        Token = token;
+                        {{returnStatement}}
+                    }
+                }
+                """);
+            var action = CreateAction(assembly, "Effects+Actions+Run");
+            var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+            var payloadType = assembly.GetType("Payload")!;
+            var resolver = action.GetType().GetField("payload", flags)!.GetValue(action)!;
+            Assert.Equal(typeof(Anonymous<>).MakeGenericType(payloadType), resolver.GetType());
+            Assert.IsType<SerializeField<string>>(action.GetType().GetField("text", flags)!.GetValue(action));
+            Assert.IsType<SerializeField<int>>(action.GetType().GetField("amount", flags)!.GetValue(action));
+            var container = new Container();
+            container.Register(ContainerKey.Anonymous, Activator.CreateInstance(payloadType, 42)!);
+            using var cancellation = new CancellationTokenSource();
+
+            await action.InvokeAsync(container, cancellation.Token);
+
+            var owner = assembly.GetType("Effects")!;
+            Assert.Equal(47, owner.GetField("Result")!.GetValue(null));
+            Assert.Same(container, owner.GetField("Context")!.GetValue(null));
+            Assert.Equal(cancellation.Token, owner.GetField("Token")!.GetValue(null));
+            container.Register(ContainerKey.Anonymous, Activator.CreateInstance(payloadType, 80)!);
+            await action.InvokeAsync(container, cancellation.Token);
+            Assert.Equal(85, owner.GetField("Result")!.GetValue(null));
+        }
+
+        [Fact]
+        public void OnlyConcreteActionClassArgumentsDefaultToAnonymous()
+        {
+            var assembly = FeedbackGeneratorTestDriver.Compile("""
+                using HKFeedbackV2;
+                public abstract class Base { }
+                public sealed class Payload : Base { }
+                public static partial class Effects
+                {
+                    [FeedbackAction] private static void Run(Payload payload, Payload[] values, Base abstractValue, object context, string text = "hello") { }
+                    [FeedbackResolver, FeedbackEvaluator] private static bool Check(Payload payload) => true;
+                }
+                """);
+            var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+            var action = Activator.CreateInstance(assembly.GetType("Effects+Actions+Run")!)!;
+            foreach (var (name, resolverType) in new[]
+            {
+                ("payload", typeof(Anonymous<>)),
+                ("context", typeof(Anonymous<>)),
+                ("values", typeof(SerializeField<>)),
+                ("abstractValue", typeof(SerializeField<>)),
+                ("text", typeof(SerializeField<>))
+            })
+                Assert.Equal(resolverType, action.GetType().GetField(name, flags)!.GetValue(action)!.GetType().GetGenericTypeDefinition());
+            foreach (var name in new[] { "Effects+Resolvers+Check", "Effects+Evaluators+Check" })
+            {
+                var instance = Activator.CreateInstance(assembly.GetType(name)!)!;
+                Assert.Equal(typeof(SerializeField<>), instance.GetType().GetField("payload", flags)!
+                    .GetValue(instance)!.GetType().GetGenericTypeDefinition());
+            }
         }
 
         [Fact]
@@ -572,11 +658,12 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var actions = (IAction[])owner.GetMethod("CreateActions")!.Invoke(null, null)!;
             var expectedNames = new[] { "Play", "Play_int", "Play_string", "Play_int_float", "Play_float_int", "Play_int_CancellationToken" };
             var expectedValues = new[] { 0, 7, 5, 8, 7, 101 };
+            var container = new Container();
             using var cancellation = new CancellationTokenSource();
             for (var i = 0; i < actions.Length; i++)
             {
                 Assert.Equal(expectedNames[i], actions[i].GetType().Name);
-                await actions[i].InvokeAsync(new Container(), cancellation.Token);
+                await actions[i].InvokeAsync(container, cancellation.Token);
                 Assert.Equal(expectedValues[i], owner.GetField("Value")!.GetValue(null));
                 Assert.Equal(i == actions.Length - 1, actions[i] is HKFeedbackV2.Actions.AsyncAction);
             }
@@ -757,9 +844,10 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     }
                 }
                 """);
-            await CreateAction(assembly, "Effects+Actions+InvokeAsyncInternal_int").InvokeAsync(new Container(), default);
+            var container = new Container();
+            await CreateAction(assembly, "Effects+Actions+InvokeAsyncInternal_int").InvokeAsync(container, default);
             Assert.Equal(7, assembly.GetType("Effects")!.GetField("Value")!.GetValue(null));
-            await CreateAction(assembly, "Effects+Actions+InvokeAsyncInternal_string").InvokeAsync(new Container(), default);
+            await CreateAction(assembly, "Effects+Actions+InvokeAsyncInternal_string").InvokeAsync(container, default);
             Assert.Equal(5, assembly.GetType("Effects")!.GetField("Value")!.GetValue(null));
         }
 

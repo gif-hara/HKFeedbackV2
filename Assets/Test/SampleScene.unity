@@ -480,31 +480,35 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Test::HKFeedbackV2.Test.TestSceneController
   feedbacks:
-  - rid: 6292669054607425774
+  - rid: 6292669054607425806
   references:
     version: 2
     RefIds:
-    - rid: 6292669054607425774
-      type: {class: Standard/Actions/EvaluateActionAsync, ns: HKFeedbackV2, asm: HKFeedbackV2}
+    - rid: 6292669054607425806
+      type: {class: TestSceneController/Actions/TestHoge, ns: HKFeedbackV2.Test, asm: Test}
       data:
-        isWait:
-          rid: 6292669054607425775
-        condition:
-          rid: 6292669054607425776
-        actions:
-          rid: 6292669054607425777
-    - rid: 6292669054607425775
+        _target:
+          rid: 6292669054607425807
+        controller:
+          rid: 6292669054607425808
+    - rid: 6292669054607425807
+      type: {class: 'Anonymous`1[[HKFeedbackV2.Test.TestSceneController, Test]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        canBeNull:
+          rid: 6292669054607425809
+    - rid: 6292669054607425808
+      type: {class: 'Anonymous`1[[HKFeedbackV2.Test.TestSceneController, Test]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        canBeNull:
+          rid: 6292669054607425810
+    - rid: 6292669054607425809
       type: {class: 'SerializeField`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
       data:
-        value: 1
-    - rid: 6292669054607425776
-      type: {class: Constant, ns: HKFeedbackV2.Evaluators, asm: HKFeedbackV2}
+        value: 0
+    - rid: 6292669054607425810
+      type: {class: 'SerializeField`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
       data:
-        isTrue: 1
-    - rid: 6292669054607425777
-      type: {class: 'SerializeReference`1[[HKFeedbackV2.IAction[], HKFeedbackV2]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
-      data:
-        value: []
+        value: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

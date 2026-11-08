@@ -463,10 +463,14 @@ namespace HKFeedbackV2.SourceGenerator
                 }
                 else
                 {
+                    var useAnonymous = isAction && parameter.Type is INamedTypeSymbol named &&
+                        named.TypeKind == TypeKind.Class && !named.IsAbstract && !named.IsStatic &&
+                        named.SpecialType != SpecialType.System_String;
                     var useSerializeReference = isAction && (parameter.Type.TypeKind == TypeKind.Interface ||
                         parameter.Type is IArrayTypeSymbol array && array.ElementType.TypeKind == TypeKind.Interface);
-                    var resolverType = useSerializeReference ? "SerializeReference" : "SerializeField";
-                    writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.{resolverType}<{typeName}>({DefaultValue(parameter)});");
+                    var resolverType = useAnonymous ? "Anonymous" : useSerializeReference ? "SerializeReference" : "SerializeField";
+                    var constructorArguments = useAnonymous ? "" : DefaultValue(parameter);
+                    writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.{resolverType}<{typeName}>({constructorArguments});");
                 }
                 writer.Line();
             }
