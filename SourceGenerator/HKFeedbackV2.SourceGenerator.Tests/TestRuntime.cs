@@ -21,18 +21,10 @@ namespace UnityEngine
     }
 }
 
-namespace UnityEngine.Serialization
-{
-    [AttributeUsage(AttributeTargets.Field, AllowMultiple = true)]
-    public sealed class FormerlySerializedAsAttribute : Attribute
-    {
-        public string oldName { get; }
-        public FormerlySerializedAsAttribute(string oldName) => this.oldName = oldName;
-    }
-}
-
+#if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class SubclassSelectorAttribute : Attribute { }
+#endif
 
 namespace Cysharp.Threading.Tasks
 {

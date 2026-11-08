@@ -13,6 +13,12 @@
     "precompiledReferences": [],
     "autoReferenced": false,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.mackysoft.serializereference-extensions",
+            "expression": "",
+            "define": "HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS"
+        }
+    ],
     "noEngineReferences": false
 }

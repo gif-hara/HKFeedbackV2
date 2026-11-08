@@ -338,7 +338,7 @@ namespace HKFeedbackV2.SourceGenerator
             if (!method.IsStatic)
             {
                 var owner = TypeName(method.ContainingType);
-                writer.Line("[global::UnityEngine.SerializeReference, global::SubclassSelector]");
+                RenderSerializeReferenceAttributes(writer);
                 writer.Line($"private global::HKFeedbackV2.IResolver<{owner}> {action.TargetFieldName} = new global::HKFeedbackV2.Resolvers.Anonymous<{owner}>();");
                 writer.Line();
             }
@@ -347,7 +347,7 @@ namespace HKFeedbackV2.SourceGenerator
             {
                 var typeName = TypeName(parameter.Type);
                 var fieldName = action.ParameterFieldName(parameter);
-                writer.Line("[global::UnityEngine.SerializeReference, global::SubclassSelector]");
+                RenderSerializeReferenceAttributes(writer);
                 writer.Line("[global::UnityEngine.InspectorName(" + SymbolDisplay.FormatLiteral(parameter.Name, true) + ")]");
                 writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.Embed<{typeName}>({DefaultValue(parameter)});");
                 writer.Line();
@@ -388,6 +388,14 @@ namespace HKFeedbackV2.SourceGenerator
             writer.Close();
             writer.Close();
             writer.Line();
+        }
+
+        private static void RenderSerializeReferenceAttributes(SourceWriter writer)
+        {
+            writer.Line("[global::UnityEngine.SerializeReference]");
+            writer.Line("#if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS");
+            writer.Line("[global::SubclassSelector]");
+            writer.Line("#endif");
         }
 
         private static string FieldName(string className, string name) => className == name ? "_" + name : name;

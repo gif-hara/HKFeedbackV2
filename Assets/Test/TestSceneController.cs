@@ -6,7 +6,10 @@ namespace HKFeedbackV2.Test
 {
     public partial class TestSceneController : MonoBehaviour
     {
-        [SerializeReference, SubclassSelector]
+        [SerializeReference]
+#if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
+        [SubclassSelector]
+#endif
         private IAction[] feedbacks;
 
         private void Start()

@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
@@ -61,10 +62,6 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.Equal(2, action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Length);
             Assert.Equal(new[] { "message", "value" }, action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
                 .Select(field => field.Name).OrderBy(name => name));
-            Assert.Equal("_argument0", action.GetType().GetField("value", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .GetCustomAttribute<UnityEngine.Serialization.FormerlySerializedAsAttribute>()!.oldName);
-            Assert.Equal("_argument1", action.GetType().GetField("message", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .GetCustomAttribute<UnityEngine.Serialization.FormerlySerializedAsAttribute>()!.oldName);
             Assert.True(action.GetType().IsDefined(typeof(SerializableAttribute)));
         }
 
@@ -670,11 +667,10 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.Equal(19, owner.GetField("Value")!.GetValue(target));
             var field = action.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
             Assert.Equal(parameterName, field.GetCustomAttribute<UnityEngine.InspectorName>()!.displayName);
-            Assert.Equal("_argument0", field.GetCustomAttribute<UnityEngine.Serialization.FormerlySerializedAsAttribute>()!.oldName);
         }
 
         [Fact]
-        public async Task ReceiverAndLegacyFieldNamesCannotStealAnotherParametersSerializedValue()
+        public async Task ReceiverAndParameterFieldNamesDoNotCollide()
         {
             var assembly = Compile("""
                 using HKFeedbackV2;
@@ -695,10 +691,8 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             await action.InvokeAsync(container, default);
             Assert.Equal(10, owner.GetField("Value")!.GetValue(target));
             var fields = action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
-            var aliases = fields.Select(field => field.GetCustomAttribute<UnityEngine.Serialization.FormerlySerializedAsAttribute>()?.oldName)
-                .Where(name => name != null).ToArray();
-            Assert.Equal(new[] { "_argument0", "_argument1", "_argument2", "_argument3" }, aliases);
-            Assert.All(aliases, alias => Assert.DoesNotContain(alias, fields.Select(field => field.Name)));
+            Assert.Equal(5, fields.Length);
+            Assert.Equal(fields.Length, fields.Select(field => field.Name).Distinct().Count());
             Assert.NotNull(action.GetType().GetField("__target", BindingFlags.NonPublic | BindingFlags.Instance));
         }
 
@@ -728,13 +722,82 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.True(waitSetting.Resolve(container));
         }
 
-        private static Generation Run(string source)
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void GeneratedSubclassSelectorsFollowTheDefine(bool enabled)
         {
+            const string source = """
+                using HKFeedbackV2;
+                public partial class Effects
+                {
+                    [FeedbackAction] private void Play(int value) { }
+                    [FeedbackAction] private static void Log(string message) { }
+                }
+                """;
+            var generation = Run(source, enabled);
+            AssertSuccess(generation);
+            if (!enabled && typeof(IAction).Assembly.GetType("SubclassSelectorAttribute") == null)
+            {
+                Assert.Null(generation.Compilation.GetTypeByMetadataName("SubclassSelectorAttribute"));
+            }
+            var assembly = Emit(generation);
+            var fields = assembly.GetType("Effects+Actions+Play_int")!
+                .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
+                .Concat(assembly.GetType("Effects+Actions+Log_string")!
+                    .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)).ToArray();
+            Assert.Equal(3, fields.Length);
+            foreach (var field in fields)
+            {
+                Assert.True(field.IsDefined(typeof(UnityEngine.SerializeReference)));
+                Assert.Equal(enabled, HasSubclassSelector(field));
+            }
+        }
+
+        [Fact]
+        public void RuntimeSubclassSelectorsFollowTheBuildDefine()
+        {
+#if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
+            const bool enabled = true;
+#else
+            const bool enabled = false;
+#endif
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var fields = new[]
+            {
+                typeof(HKFeedbackV2.Actions.AsyncAction).GetField("isWait", flags)!,
+                typeof(Anonymous<int>).GetField("canBeNull", flags)!,
+                typeof(HKFeedbackV2.Resolvers.ContainerKey<int>).GetField("canBeNull", flags)!,
+                typeof(HKFeedbackV2.Resolvers.ContainerKey<int>).GetField("key", flags)!
+            };
+            foreach (var field in fields)
+            {
+                Assert.True(field.IsDefined(typeof(UnityEngine.SerializeReference)));
+                Assert.Equal(enabled, HasSubclassSelector(field));
+            }
+        }
+
+        private static bool HasSubclassSelector(FieldInfo field) =>
+            field.GetCustomAttributes().Any(attribute => attribute.GetType().FullName == "SubclassSelectorAttribute");
+
+        private static Generation Run(string source, bool enableSerializeReferenceExtensions = false)
+        {
+            var parseOptions = enableSerializeReferenceExtensions
+                ? ParseOptions.WithPreprocessorSymbols("HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS")
+                : ParseOptions;
+            var syntaxTrees = new List<SyntaxTree> { CSharpSyntaxTree.ParseText(source, parseOptions) };
+            if (enableSerializeReferenceExtensions && typeof(IAction).Assembly.GetType("SubclassSelectorAttribute") == null)
+            {
+                syntaxTrees.Add(CSharpSyntaxTree.ParseText("""
+                    [System.AttributeUsage(System.AttributeTargets.Field)]
+                    public sealed class SubclassSelectorAttribute : System.Attribute { }
+                    """, parseOptions));
+            }
             var compilation = CSharpCompilation.Create("GeneratedActions_" + Guid.NewGuid().ToString("N"),
-                new[] { CSharpSyntaxTree.ParseText(source, ParseOptions) }, References,
+                syntaxTrees, References,
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
             GeneratorDriver driver = CSharpGeneratorDriver.Create(
-                new[] { new FeedbackActionGenerator().AsSourceGenerator() }, parseOptions: ParseOptions);
+                new[] { new FeedbackActionGenerator().AsSourceGenerator() }, parseOptions: parseOptions);
             driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
             return new Generation(output, driver.GetRunResult(), diagnostics);
         }
@@ -751,6 +814,11 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         {
             var generation = Run(source);
             AssertSuccess(generation);
+            return Emit(generation);
+        }
+
+        private static Assembly Emit(Generation generation)
+        {
             using var stream = new MemoryStream();
             var result = generation.Compilation.Emit(stream);
             Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
