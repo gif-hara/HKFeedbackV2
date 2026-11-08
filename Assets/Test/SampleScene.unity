@@ -480,27 +480,37 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Test::HKFeedbackV2.Test.TestSceneController
   feedbacks:
-  - rid: 6292669054607425645
+  - rid: 6292669054607425683
   references:
     version: 2
     RefIds:
-    - rid: 6292669054607425645
-      type: {class: TestSceneController/Actions/TestUniTaskAsync, ns: HKFeedbackV2.Test, asm: Test}
+    - rid: 6292669054607425683
+      type: {class: TestSceneController/Actions/TestHoge, ns: HKFeedbackV2.Test, asm: Test}
       data:
-        isWait:
-          rid: 6292669054607425646
         _target:
-          rid: 6292669054607425647
-    - rid: 6292669054607425646
-      type: {class: 'Embed`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
-      data:
-        value: 1
-    - rid: 6292669054607425647
+          rid: 6292669054607425684
+        controller:
+          rid: 6292669054607425689
+    - rid: 6292669054607425684
       type: {class: 'Anonymous`1[[HKFeedbackV2.Test.TestSceneController, Test]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
       data:
         canBeNull:
-          rid: 6292669054607425648
-    - rid: 6292669054607425648
+          rid: 6292669054607425686
+    - rid: 6292669054607425686
+      type: {class: 'Embed`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        value: 0
+    - rid: 6292669054607425689
+      type: {class: TestSceneController/Resolvers/TestSceneControllerResolver, ns: HKFeedbackV2.Test, asm: Test}
+      data:
+        _target:
+          rid: 6292669054607425690
+    - rid: 6292669054607425690
+      type: {class: 'Anonymous`1[[HKFeedbackV2.Test.TestSceneController, Test]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        canBeNull:
+          rid: 6292669054607425691
+    - rid: 6292669054607425691
       type: {class: 'Embed`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
       data:
         value: 0

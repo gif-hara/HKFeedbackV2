@@ -37,6 +37,18 @@ namespace HKFeedbackV2.Test
             Debug.Log($"TestArgumentAction: {hoge}, {fuga}");
         }
 
+        [FeedbackResolver]
+        public TestSceneController TestSceneControllerResolver(int a, float b, string c)
+        {
+            return this;
+        }
+
+        [FeedbackAction]
+        public void TestHoge(TestSceneController controller)
+        {
+            Debug.Log($"TestHoge: {controller}");
+        }
+
         public void Register(ContainerKey key, IContainerBuilder builder)
         {
             builder.Register(key, this);

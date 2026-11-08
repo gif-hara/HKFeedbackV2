@@ -13,11 +13,14 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2" PrivateAssets="all" />
     <ProjectReference Include="../HKFeedbackV2.SourceGenerator/HKFeedbackV2.SourceGenerator.csproj" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/IAction.cs" Link="Runtime/IAction.cs" />
-    <Compile Include="../../Assets/HKFeedbackV2/Runtime/AsyncAction.cs" Link="Runtime/AsyncAction.cs" />
+    <Compile Include="../../Assets/HKFeedbackV2/Runtime/Actions/AsyncAction.cs" Link="Runtime/Actions/AsyncAction.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/IContainer.cs" Link="Runtime/IContainer.cs" />
+    <Compile Include="../../Assets/HKFeedbackV2/Runtime/IContainerBuilder.cs" Link="Runtime/IContainerBuilder.cs" />
+    <Compile Include="../../Assets/HKFeedbackV2/Runtime/IContainerRegister.cs" Link="Runtime/IContainerRegister.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/IResolver.cs" Link="Runtime/IResolver.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/Container.cs" Link="Runtime/Container.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/FeedbackActionAttribute.cs" Link="Runtime/FeedbackActionAttribute.cs" />
+    <Compile Include="../../Assets/HKFeedbackV2/Runtime/FeedbackResolverAttribute.cs" Link="Runtime/FeedbackResolverAttribute.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/Embed.cs" Link="Runtime/Embed.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/Anonymous.cs" Link="Runtime/Anonymous.cs" />
     <Compile Include="../../Assets/HKFeedbackV2/Runtime/Resolvers/ContainerKey.cs" Link="Runtime/ContainerKey.cs" />
