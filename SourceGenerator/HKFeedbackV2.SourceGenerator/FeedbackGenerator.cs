@@ -450,7 +450,7 @@ namespace HKFeedbackV2.SourceGenerator
                 var fieldName = definition.ParameterFieldName(parameter);
                 RenderSerializeReferenceAttributes(writer);
                 writer.Line("[global::UnityEngine.InspectorName(" + SymbolDisplay.FormatLiteral(parameter.Name, true) + ")]");
-                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.Embed<{typeName}>({DefaultValue(parameter)});");
+                writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.SerializeField<{typeName}>({DefaultValue(parameter)});");
                 writer.Line();
             }
 

@@ -36,7 +36,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var resolver = CreateResolver<int>(assembly, "Game.Calculator+Resolvers+Calculate");
             var container = new Container();
             Assert.Equal(5, resolver.Resolve(container));
-            SetField(resolver, "value", new Embed<int>(42));
+            SetField(resolver, "value", new SerializeField<int>(42));
             Assert.Equal(44, resolver.Resolve(container));
             var owner = assembly.GetType("Game.Calculator")!;
             Assert.Same(container, owner.GetField("Context")!.GetValue(null));
@@ -66,7 +66,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.Equal(17, resolver.Resolve(container));
             var replacement = Activator.CreateInstance(owner)!;
             owner.GetField("Value")!.SetValue(replacement, 20);
-            SetField(resolver, "_target", Activator.CreateInstance(typeof(Embed<>).MakeGenericType(owner), replacement)!);
+            SetField(resolver, "_target", Activator.CreateInstance(typeof(SerializeField<>).MakeGenericType(owner), replacement)!);
             Assert.Equal(27, resolver.Resolve(container));
         }
 
@@ -83,7 +83,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 """);
             var resolver = CreateResolver<bool>(assembly, "Values+Resolvers+IsCancelled");
             using var cancellation = new CancellationTokenSource();
-            SetField(resolver, "token", new Embed<CancellationToken>(cancellation.Token));
+            SetField(resolver, "token", new SerializeField<CancellationToken>(cancellation.Token));
             Assert.False(resolver.Resolve(new Container()));
             cancellation.Cancel();
             Assert.True(resolver.Resolve(new Container()));
@@ -175,7 +175,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var container = new Container();
             container.Register(ContainerKey.Anonymous, Activator.CreateInstance(assembly.GetType("Values")!)!);
             var resolver = CreateResolver<int>(assembly, "Values+Resolvers+Read");
-            SetField(resolver, fieldName, new Embed<int>(19));
+            SetField(resolver, fieldName, new SerializeField<int>(19));
             Assert.Equal(19, resolver.Resolve(container));
             Assert.Equal(parameterName, resolver.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!
                 .GetCustomAttribute<UnityEngine.InspectorName>()!.displayName);
@@ -193,7 +193,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 }
                 """);
             var resolver = CreateResolver<string>(assembly, "Values+Resolvers+Read_object");
-            SetField(resolver, "value", new Embed<object>(42));
+            SetField(resolver, "value", new SerializeField<object>(42));
             Assert.Equal("object", resolver.Resolve(new Container()));
         }
 

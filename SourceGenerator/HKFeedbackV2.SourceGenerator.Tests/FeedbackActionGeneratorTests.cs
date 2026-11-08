@@ -50,7 +50,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var action = CreateAction(assembly, "Game.Effects+Actions+Run");
             var container = new Container();
             using var cancellation = new CancellationTokenSource();
-            SetResolver(action, "value", new Embed<int>(42));
+            SetResolver(action, "value", new SerializeField<int>(42));
 
             await action.InvokeAsync(container, cancellation.Token);
 
@@ -101,7 +101,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 """);
             var owner = assembly.GetType("Effects")!;
             var target = Activator.CreateInstance(owner)!;
-            var resolver = Activator.CreateInstance(typeof(Embed<>).MakeGenericType(owner), target)!;
+            var resolver = Activator.CreateInstance(typeof(SerializeField<>).MakeGenericType(owner), target)!;
             var action = CreateAction(assembly, "Effects+Actions+Run");
             SetResolver(action, "_target", resolver);
 
@@ -185,7 +185,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var action = CreateAction(assembly, "Effects+Actions+Run");
             Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
             typeof(HKFeedbackV2.Actions.AsyncAction).GetField("isWait", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .SetValue(action, new Embed<bool>(false));
+                .SetValue(action, new SerializeField<bool>(false));
             var container = new Container();
             using var cancellation = new CancellationTokenSource();
             var result = action.InvokeAsync(container, cancellation.Token).AsTask();
@@ -227,7 +227,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             container.Register(ContainerKey.Anonymous, target);
             var action = CreateAction(assembly, "Effects+Actions+" + methodName);
             Assert.IsAssignableFrom<HKFeedbackV2.Actions.AsyncAction>(action);
-            SetResolver(action, "value", new Embed<int>(17));
+            SetResolver(action, "value", new SerializeField<int>(17));
             using var cancellation = new CancellationTokenSource();
 
             await action.InvokeAsync(container, cancellation.Token);
@@ -565,7 +565,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 }
                 """);
             var action = CreateAction(assembly, "Effects+Actions+Play_object");
-            SetResolver(action, "value", new Embed<object>(42));
+            SetResolver(action, "value", new SerializeField<object>(42));
             await action.InvokeAsync(new Container(), default);
             Assert.Equal("object", assembly.GetType("Effects")!.GetField("Last")!.GetValue(null));
         }
@@ -754,7 +754,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 }
                 """);
             var action = CreateAction(assembly, "Effects+Actions+Play");
-            SetResolver(action, "event", new Embed<int>(5));
+            SetResolver(action, "event", new SerializeField<int>(5));
             await action.InvokeAsync(new Container(), default);
             Assert.Equal(534, assembly.GetType("Effects")!.GetField("Value")!.GetValue(null));
             Assert.NotNull(action.GetType().GetField("container", BindingFlags.NonPublic | BindingFlags.Instance));
@@ -782,7 +782,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
             var action = CreateAction(assembly, "Effects+Actions+Play");
-            SetResolver(action, fieldName, new Embed<int>(19));
+            SetResolver(action, fieldName, new SerializeField<int>(19));
             await action.InvokeAsync(container, default);
             Assert.Equal(19, owner.GetField("Value")!.GetValue(target));
             var field = action.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -833,7 +833,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 }
                 """);
             var action = CreateAction(assembly, "Effects+Actions+Play");
-            SetResolver(action, "_isWait", new Embed<bool>(false));
+            SetResolver(action, "_isWait", new SerializeField<bool>(false));
             var container = new Container();
             await action.InvokeAsync(container, default);
             Assert.Equal(false, assembly.GetType("Effects")!.GetField("Value")!.GetValue(null));

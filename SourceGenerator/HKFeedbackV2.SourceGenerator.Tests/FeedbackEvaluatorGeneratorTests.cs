@@ -34,7 +34,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 """);
             var evaluator = CreateEvaluator(assembly, "Game.Conditions+Evaluators+Check");
             Assert.True(evaluator.Evaluate(new Container()));
-            SetField(evaluator, "value", new Embed<int>(0));
+            SetField(evaluator, "value", new SerializeField<int>(0));
             var container = new Container();
             Assert.False(evaluator.Evaluate(container));
             var owner = assembly.GetType("Game.Conditions")!;
@@ -65,7 +65,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.True(evaluator.Evaluate(container));
             var replacement = Activator.CreateInstance(owner)!;
             owner.GetField("Value")!.SetValue(replacement, 3);
-            SetField(evaluator, "_target", Activator.CreateInstance(typeof(Embed<>).MakeGenericType(owner), replacement)!);
+            SetField(evaluator, "_target", Activator.CreateInstance(typeof(SerializeField<>).MakeGenericType(owner), replacement)!);
             Assert.False(evaluator.Evaluate(container));
         }
 
@@ -138,7 +138,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             container.Register(ContainerKey.Anonymous, Activator.CreateInstance(assembly.GetType("Conditions")!)!);
             var evaluator = CreateEvaluator(assembly, "Conditions+Evaluators+Check");
             Assert.False(evaluator.Evaluate(container));
-            SetField(evaluator, fieldName, new Embed<int>(19));
+            SetField(evaluator, fieldName, new SerializeField<int>(19));
             Assert.True(evaluator.Evaluate(container));
             Assert.Equal(parameterName, evaluator.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!
                 .GetCustomAttribute<UnityEngine.InspectorName>()!.displayName);
@@ -160,7 +160,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.False(evaluator.Evaluate(container));
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
-            SetField(evaluator, "token", new Embed<CancellationToken>(cancellation.Token));
+            SetField(evaluator, "token", new SerializeField<CancellationToken>(cancellation.Token));
             Assert.True(evaluator.Evaluate(container));
         }
 
@@ -183,7 +183,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var input = (IResolver<int>)Activator.CreateInstance(assembly.GetType("Conditions+Resolvers+Current")!)!;
             SetField(evaluator, "value", input);
             Assert.True(evaluator.Evaluate(container));
-            SetField(input, "value", new Embed<int>(-3));
+            SetField(input, "value", new SerializeField<int>(-3));
             Assert.False(evaluator.Evaluate(container));
             var booleanResolver = (IResolver<bool>)Activator.CreateInstance(assembly.GetType("Conditions+Resolvers+Positive")!)!;
             SetField(booleanResolver, "value", input);

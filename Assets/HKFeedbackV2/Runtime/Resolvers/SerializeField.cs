@@ -1,12 +1,11 @@
 using System;
-using UnityEngine;
 
 namespace HKFeedbackV2.Resolvers
 {
     [Serializable]
-    public sealed class Embed<T> : IResolver<T>
+    public sealed class SerializeField<T> : IResolver<T>
     {
-        [SerializeField]
+        [UnityEngine.SerializeField]
         private T value;
 
         public T Resolve(IContainer container)
@@ -14,7 +13,7 @@ namespace HKFeedbackV2.Resolvers
             return value;
         }
 
-        public Embed(T value)
+        public SerializeField(T value)
         {
             this.value = value;
         }

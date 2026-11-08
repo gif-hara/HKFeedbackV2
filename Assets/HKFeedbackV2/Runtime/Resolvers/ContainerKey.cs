@@ -10,13 +10,13 @@ namespace HKFeedbackV2.Resolvers
 #if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
         [SubclassSelector]
 #endif
-        private IResolver<bool> canBeNull = new Embed<bool>(false);
+        private IResolver<bool> canBeNull = new SerializeField<bool>(false);
 
         [SerializeReference]
 #if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
         [SubclassSelector]
 #endif
-        private IResolver<ContainerKey> key = new Embed<ContainerKey>(null);
+        private IResolver<ContainerKey> key = new SerializeField<ContainerKey>(null);
 
         public T Resolve(IContainer container)
         {

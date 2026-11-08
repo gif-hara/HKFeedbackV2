@@ -13,7 +13,7 @@ namespace HKFeedbackV2.Actions
 #if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
         [SubclassSelector]
 #endif
-        private IResolver<bool> isWait = new Embed<bool>(true);
+        private IResolver<bool> isWait = new SerializeField<bool>(true);
 
         public UniTask InvokeAsync(IContainer container, CancellationToken cancellationToken)
         {
