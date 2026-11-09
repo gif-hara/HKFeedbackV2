@@ -65,7 +65,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.True(evaluator.Evaluate(container));
             var replacement = Activator.CreateInstance(owner)!;
             owner.GetField("Value")!.SetValue(replacement, 3);
-            SetField(evaluator, "_target", Activator.CreateInstance(typeof(SerializeField<>).MakeGenericType(owner), replacement)!);
+            SetField(evaluator, "_Conditions", Activator.CreateInstance(typeof(SerializeField<>).MakeGenericType(owner), replacement)!);
             Assert.False(evaluator.Evaluate(container));
         }
 
@@ -119,13 +119,13 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         }
 
         [Theory]
-        [InlineData("_target", "__target")]
+        [InlineData("_target", "_target")]
         [InlineData("Evaluate", "_Evaluate")]
         [InlineData("Check", "_Check")]
         [InlineData("ToString", "_ToString")]
         [InlineData("container", "container")]
         [InlineData("event", "event")]
-        public void ConflictingAndKeywordParameterNamesKeepOriginalLabels(string parameterName, string fieldName)
+        public void ParameterFieldsUseOriginalLabelsAndRemainCallable(string parameterName, string fieldName)
         {
             var assembly = Compile($$"""
                 using HKFeedbackV2;

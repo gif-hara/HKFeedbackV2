@@ -66,7 +66,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.Equal(17, resolver.Resolve(container));
             var replacement = Activator.CreateInstance(owner)!;
             owner.GetField("Value")!.SetValue(replacement, 20);
-            SetField(resolver, "_target", Activator.CreateInstance(typeof(SerializeField<>).MakeGenericType(owner), replacement)!);
+            SetField(resolver, "_Stats", Activator.CreateInstance(typeof(SerializeField<>).MakeGenericType(owner), replacement)!);
             Assert.Equal(27, resolver.Resolve(container));
         }
 
@@ -157,13 +157,13 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         }
 
         [Theory]
-        [InlineData("_target", "__target")]
+        [InlineData("_target", "_target")]
         [InlineData("Resolve", "_Resolve")]
         [InlineData("Read", "_Read")]
         [InlineData("ToString", "_ToString")]
         [InlineData("container", "container")]
         [InlineData("event", "event")]
-        public void ConflictingAndKeywordParameterNamesRemainCallableWithOriginalLabels(string parameterName, string fieldName)
+        public void ParameterFieldsUseOriginalLabelsAndRemainCallable(string parameterName, string fieldName)
         {
             var assembly = Compile($$"""
                 using HKFeedbackV2;

@@ -400,14 +400,9 @@ namespace HKFeedbackV2.SourceGenerator
             }
 
             writer.Open("public static class " + containerClassName);
-            var generatedNames = new HashSet<string>(definitions.Select(definition => definition.Name), StringComparer.Ordinal);
             foreach (var definition in definitions)
             {
-                var previousName = SignatureName(definition.Method);
-                RenderFeedback(writer, definition, definition.Kind == FeedbackKind.Action &&
-                    definition.Name != previousName && !generatedNames.Contains(previousName)
-                    ? string.Join("/", ContainingTypes(owner).Select(type => type.Name)) + "/Actions/" + previousName
-                    : null);
+                RenderFeedback(writer, definition);
             }
             writer.Close();
             foreach (var _ in ContainingTypes(owner)) writer.Close();
@@ -415,7 +410,7 @@ namespace HKFeedbackV2.SourceGenerator
             return writer.ToString();
         }
 
-        private static void RenderFeedback(SourceWriter writer, FeedbackDefinition definition, string? previousClassName)
+        private static void RenderFeedback(SourceWriter writer, FeedbackDefinition definition)
         {
             var method = definition.Method;
             var returnTypeName = TypeName(method.ReturnType);
@@ -428,17 +423,6 @@ namespace HKFeedbackV2.SourceGenerator
                 _ => isAsyncAction ? "global::HKFeedbackV2.Actions.AsyncAction" : "global::HKFeedbackV2.IAction"
             };
             writer.Line("[global::System.Serializable]");
-            if (previousClassName != null)
-            {
-                var owner = method.ContainingType;
-                var sourceNamespace = owner.ContainingNamespace.IsGlobalNamespace ? ""
-                    : owner.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat
-                        .WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.None));
-                writer.Line("[global::UnityEngine.Scripting.APIUpdating.MovedFrom(false, sourceNamespace: " +
-                    SymbolDisplay.FormatLiteral(sourceNamespace, true) + ", sourceAssembly: " +
-                    SymbolDisplay.FormatLiteral(owner.ContainingAssembly.Name, true) + ", sourceClassName: " +
-                    SymbolDisplay.FormatLiteral(previousClassName, true) + ")]");
-            }
             writer.Open("public sealed class @" + definition.Name + " : " + baseType);
 
             if (!method.IsStatic)
@@ -532,8 +516,6 @@ namespace HKFeedbackV2.SourceGenerator
             writer.Line("#endif");
         }
 
-        private static string FieldName(string className, string name) => className == name ? "_" + name : name;
-
         private static string TypeName(ITypeSymbol type) =>
             type.TypeKind == TypeKind.Dynamic ? "global::System.Object"
                 : type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -573,7 +555,7 @@ namespace HKFeedbackV2.SourceGenerator
             public IMethodSymbol Method { get; }
             public FeedbackKind Kind { get; }
             public string Name { get; }
-            public string TargetFieldName => FieldName(Name, "_target");
+            public string TargetFieldName { get; }
             public Location? Location { get; }
             public string FullName => Method.ContainingType.ToDisplayString() + "." + ContainerClassName(Kind) + "." + Name;
 
@@ -593,31 +575,30 @@ namespace HKFeedbackV2.SourceGenerator
                 if (kind == FeedbackKind.Resolver) reserved.Add("Resolve");
                 else if (kind == FeedbackKind.Evaluator) reserved.Add("Evaluate");
                 else reserved.UnionWith(new[] { "InvokeAsync", "InvokeAsyncInternal" });
-                if (!method.IsStatic) reserved.Add(TargetFieldName);
                 if (kind == FeedbackKind.Action && method.ReturnType.ToDisplayString() == UniTaskName) reserved.Add("isWait");
 
-                var legacyNames = kind == FeedbackKind.Action
-                    ? parameters.ToDictionary(parameter => parameter.Ordinal, LegacyParameterFieldName)
-                    : new Dictionary<int, string>();
                 var occupied = new HashSet<string>(parameters.Select(parameter => parameter.Name), StringComparer.Ordinal);
                 occupied.UnionWith(reserved);
-                occupied.UnionWith(legacyNames.Values);
                 foreach (var parameter in parameters)
                 {
                     var fieldName = parameter.Name;
-                    if (reserved.Contains(fieldName) || legacyNames.Any(legacy =>
-                        legacy.Key != parameter.Ordinal && legacy.Value == fieldName))
+                    if (reserved.Contains(fieldName))
                     {
                         do { fieldName = "_" + fieldName; } while (occupied.Contains(fieldName));
                     }
                     parameterFields.Add(parameter.Ordinal, fieldName);
                     occupied.Add(fieldName);
                 }
+
+                var targetFieldName = "_" + method.ContainingType.Name;
+                while (occupied.Contains(targetFieldName))
+                {
+                    targetFieldName = "_" + targetFieldName;
+                }
+                TargetFieldName = targetFieldName;
             }
 
             public string ParameterFieldName(IParameterSymbol parameter) => parameterFields[parameter.Ordinal];
-
-            public string LegacyParameterFieldName(IParameterSymbol parameter) => FieldName(Name, "_argument" + parameter.Ordinal);
         }
 
         private sealed class SourceWriter

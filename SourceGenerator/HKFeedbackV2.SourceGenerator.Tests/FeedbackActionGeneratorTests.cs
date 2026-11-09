@@ -271,7 +271,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             container.Register(ContainerKey.Anonymous, target);
             var action = CreateAction(assembly, "Effects+Actions+Run");
             var flags = BindingFlags.NonPublic | BindingFlags.Instance;
-            Assert.Equal(typeof(Anonymous<>), action.GetType().GetField("_target", flags)!.GetValue(action)!.GetType().GetGenericTypeDefinition());
+            Assert.Equal(typeof(Anonymous<>), action.GetType().GetField("_Effects", flags)!.GetValue(action)!.GetType().GetGenericTypeDefinition());
             Assert.Equal(typeof(IEvaluator), action.GetType().GetField("condition", flags)!.FieldType);
             SetResolver(action, "condition", condition);
 
@@ -400,7 +400,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var target = Activator.CreateInstance(owner)!;
             var resolver = Activator.CreateInstance(typeof(SerializeField<>).MakeGenericType(owner), target)!;
             var action = CreateAction(assembly, "Effects+Actions+Run");
-            SetResolver(action, "_target", resolver);
+            SetResolver(action, "_Effects", resolver);
 
             await action.InvokeAsync(new Container(), default);
 
@@ -779,36 +779,8 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.NotNull(assembly.GetType("Effects+Actions+Stop"));
         }
 
-        [Theory]
-        [InlineData("", "")]
-        [InlineData("namespace Game;", "Game")]
-        [InlineData("namespace @event.Game;", "event.Game")]
-        public void ShortenedClassNamesKeepPreviousSerializedTypeNames(string namespaceDeclaration, string namespaceName)
-        {
-            var assembly = Compile($$"""
-                using HKFeedbackV2;
-                {{namespaceDeclaration}}
-                public partial class Outer
-                {
-                    public partial class Effects
-                    {
-                        [FeedbackAction] public static void Play(int count) { }
-                        [FeedbackAction] public static void Stop() { }
-                    }
-                }
-                """);
-            var prefix = namespaceName.Length == 0 ? "" : namespaceName + ".";
-            var action = assembly.GetType(prefix + "Outer+Effects+Actions+Play")!;
-            var migration = action.GetCustomAttribute<UnityEngine.Scripting.APIUpdating.MovedFromAttribute>()!;
-            Assert.Equal("Outer/Effects/Actions/Play_int", migration.SourceClassName);
-            Assert.Equal(namespaceName, migration.SourceNamespace);
-            Assert.Equal(assembly.GetName().Name, migration.SourceAssembly);
-            Assert.Null(assembly.GetType(prefix + "Outer+Effects+Actions+Stop")!
-                .GetCustomAttribute<UnityEngine.Scripting.APIUpdating.MovedFromAttribute>());
-        }
-
         [Fact]
-        public void SerializedTypeMigrationDoesNotOverrideAnExistingActionName()
+        public void NonOverloadedActionNamesCanIncludeTypeSuffixes()
         {
             var assembly = Compile("""
                 using HKFeedbackV2;
@@ -818,9 +790,8 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                     [FeedbackAction] public static void Play_int() { }
                 }
                 """);
+            Assert.NotNull(assembly.GetType("Effects+Actions+Play"));
             Assert.NotNull(assembly.GetType("Effects+Actions+Play_int"));
-            Assert.Null(assembly.GetType("Effects+Actions+Play")!
-                .GetCustomAttribute<UnityEngine.Scripting.APIUpdating.MovedFromAttribute>());
         }
 
         [Fact]
@@ -979,10 +950,11 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         }
 
         [Theory]
-        [InlineData("InvokeAsync")]
-        [InlineData("_argument0")]
-        [InlineData("_target")]
-        public async Task MethodNamesCanMatchGeneratedMembers(string methodName)
+        [InlineData("InvokeAsync", "_Effects")]
+        [InlineData("_argument0", "_Effects")]
+        [InlineData("_target", "_Effects")]
+        [InlineData("_Effects", "__Effects")]
+        public async Task MethodNamesCanMatchGeneratedMembers(string methodName, string targetFieldName)
         {
             var assembly = Compile($$"""
                 using HKFeedbackV2;
@@ -996,7 +968,10 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var target = Activator.CreateInstance(owner)!;
             var container = new Container();
             container.Register(ContainerKey.Anonymous, target);
-            await CreateAction(assembly, "Effects+Actions+" + methodName).InvokeAsync(container, default);
+            var action = CreateAction(assembly, "Effects+Actions+" + methodName);
+            var field = action.GetType().GetField(targetFieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+            Assert.Equal(typeof(IResolver<>).MakeGenericType(owner), field.FieldType);
+            await action.InvokeAsync(container, default);
             Assert.Equal(5, owner.GetField("Count")!.GetValue(target));
         }
 
@@ -1061,12 +1036,12 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         }
 
         [Theory]
-        [InlineData("_target", "__target")]
+        [InlineData("_target", "_target")]
         [InlineData("InvokeAsync", "_InvokeAsync")]
         [InlineData("InvokeAsyncInternal", "_InvokeAsyncInternal")]
         [InlineData("Play", "_Play")]
         [InlineData("ToString", "_ToString")]
-        public async Task ConflictingParameterNamesKeepLabelsAndRemainCallable(string parameterName, string fieldName)
+        public async Task ParameterFieldsUseOriginalLabelsAndRemainCallable(string parameterName, string fieldName)
         {
             var assembly = Compile($$"""
                 using HKFeedbackV2;
@@ -1096,9 +1071,9 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 public partial class Effects
                 {
                     public int Value;
-                    [FeedbackAction] private void Play(int _target = 1, int __target = 2, int _argument3 = 3, int _argument2 = 4)
+                    [FeedbackAction] private void Play(int _Effects = 1, int __Effects = 2, int _argument3 = 3, int _argument2 = 4)
                     {
-                        Value = _target + __target + _argument3 + _argument2;
+                        Value = _Effects + __Effects + _argument3 + _argument2;
                     }
                 }
                 """);
@@ -1112,7 +1087,11 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             var fields = action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
             Assert.Equal(5, fields.Length);
             Assert.Equal(fields.Length, fields.Select(field => field.Name).Distinct().Count());
-            Assert.NotNull(action.GetType().GetField("__target", BindingFlags.NonPublic | BindingFlags.Instance));
+            Assert.Contains(fields, field => field.Name == "_Effects" && field.FieldType == typeof(IResolver<int>));
+            Assert.Contains(fields, field => field.Name == "__Effects" && field.FieldType == typeof(IResolver<int>));
+            Assert.Contains(fields, field => field.Name == "_argument3" && field.FieldType == typeof(IResolver<int>));
+            Assert.Contains(fields, field => field.Name == "_argument2" && field.FieldType == typeof(IResolver<int>));
+            Assert.Contains(fields, field => field.Name == "___Effects" && field.FieldType == typeof(IResolver<>).MakeGenericType(owner));
         }
 
         [Fact]
