@@ -1,0 +1,13 @@
+{
+    "name": "HKFeedbackV2.Editor",
+    "rootNamespace": "HKFeedbackV2.Editor",
+    "references": [
+        "HKFeedbackV2"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "defineConstraints": [
+        "UNITY_6000_7_OR_NEWER"
+    ]
+}

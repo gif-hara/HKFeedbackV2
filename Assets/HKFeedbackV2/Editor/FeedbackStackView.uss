@@ -1,0 +1,34 @@
+.hk-feedback-resize {
+    position: absolute;
+}
+
+.hk-feedback-resize--right {
+    top: 0;
+    right: 0;
+    bottom: 12px;
+    width: 6px;
+    cursor: resize-horizontal;
+}
+
+.hk-feedback-resize--bottom {
+    right: 12px;
+    bottom: 0;
+    left: 0;
+    height: 6px;
+    cursor: resize-vertical;
+}
+
+.hk-feedback-resize--corner {
+    right: 1px;
+    bottom: 1px;
+    width: 11px;
+    height: 11px;
+    border-right-width: 2px;
+    border-bottom-width: 2px;
+    border-color: rgba(160, 160, 160, 0.7);
+    cursor: resize-up-left;
+}
+
+.hk-feedback-resize:hover {
+    background-color: rgba(160, 160, 160, 0.2);
+}
