@@ -57,5 +57,11 @@ namespace HKFeedbackV2
                 return falseActions.InvokeAsync(container, cancellationToken);
             }
         }
+
+        [FeedbackAction]
+        public static UniTask AnotherActionAsync(IContainer container, IAction[] actions, CancellationToken cancellationToken)
+        {
+            return actions.InvokeAsync(container, cancellationToken);
+        }
     }
 }
