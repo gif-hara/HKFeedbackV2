@@ -1,4 +1,5 @@
 using System.Threading;
+using Codice.CM.Common;
 using Cysharp.Threading.Tasks;
 
 namespace HKFeedbackV2
@@ -37,6 +38,12 @@ namespace HKFeedbackV2
         public static UniTask DelayAsync(float seconds, bool ignoreTimeScale = false, PlayerLoopTiming timing = PlayerLoopTiming.Update, CancellationToken cancellationToken = default, bool cancelImmediately = false)
         {
             return UniTask.Delay(System.TimeSpan.FromSeconds(seconds), ignoreTimeScale, timing, cancellationToken, cancelImmediately);
+        }
+
+        [FeedbackAction]
+        public static UniTask WaitUntilAsync(IContainer container, IEvaluator condition, PlayerLoopTiming timing = PlayerLoopTiming.Update, CancellationToken cancellationToken = default)
+        {
+            return UniTask.WaitUntil((container, condition), static (state) => state.condition.Evaluate(state.container), timing, cancellationToken);
         }
     }
 }
