@@ -57,6 +57,40 @@ namespace HKFeedbackV2
             {
                 transform.SetParent(parent, worldPositionStays);
             }
+
+            [FeedbackAction]
+            public static void SyncTo(UnityEngine.Transform transform, UnityEngine.Transform target, bool syncPosition = true, bool syncRotation = true, bool syncScale = true)
+            {
+                if (syncPosition)
+                {
+                    transform.position = target.position;
+                }
+                if (syncRotation)
+                {
+                    transform.rotation = target.rotation;
+                }
+                if (syncScale)
+                {
+                    transform.localScale = target.localScale;
+                }
+            }
+
+            [FeedbackAction]
+            public static void SyncFrom(UnityEngine.Transform transform, UnityEngine.Transform target, bool syncPosition = true, bool syncRotation = true, bool syncScale = true)
+            {
+                if (syncPosition)
+                {
+                    target.position = transform.position;
+                }
+                if (syncRotation)
+                {
+                    target.rotation = transform.rotation;
+                }
+                if (syncScale)
+                {
+                    target.localScale = transform.localScale;
+                }
+            }
         }
     }
 }
