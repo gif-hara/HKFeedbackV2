@@ -1,5 +1,9 @@
+using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using HKFeedbackV2.Evaluators;
+using HKFeedbackV2.Resolvers;
+using UnityEngine;
 
 namespace HKFeedbackV2
 {
@@ -11,19 +15,6 @@ namespace HKFeedbackV2
             while (condition.Evaluate(container) && !cancellationToken.IsCancellationRequested)
             {
                 await actions.InvokeAsync(container, cancellationToken);
-            }
-        }
-
-        [FeedbackAction]
-        public static UniTask EvaluateActionAsync(IContainer container, IEvaluator condition, IAction[] actions, CancellationToken cancellationToken)
-        {
-            if (condition.Evaluate(container))
-            {
-                return actions.InvokeAsync(container, cancellationToken);
-            }
-            else
-            {
-                return UniTask.CompletedTask;
             }
         }
 
@@ -46,22 +37,38 @@ namespace HKFeedbackV2
         }
 
         [FeedbackAction]
-        public static UniTask BranchAsync(IContainer container, IEvaluator condition, IAction[] trueActions, IAction[] falseActions, CancellationToken cancellationToken)
-        {
-            if (condition.Evaluate(container))
-            {
-                return trueActions.InvokeAsync(container, cancellationToken);
-            }
-            else
-            {
-                return falseActions.InvokeAsync(container, cancellationToken);
-            }
-        }
-
-        [FeedbackAction]
         public static UniTask AnotherActionAsync(IContainer container, IAction[] actions, CancellationToken cancellationToken)
         {
             return actions.InvokeAsync(container, cancellationToken);
+        }
+
+        [Serializable]
+        public sealed class SelectorElement
+        {
+            [field: SerializeReference]
+#if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
+            [field: SubclassSelector]
+#endif
+            public IEvaluator Condition { get; private set; } = new Constant(true);
+
+            [field: SerializeReference]
+#if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
+            [field: SubclassSelector]
+#endif
+            public IResolver<IAction[]> Actions { get; private set; } = new SerializeReference<IAction[]>(Array.Empty<IAction>());
+        }
+
+        [FeedbackAction]
+        public static async UniTask SelectorAsync(IContainer container, SelectorElement[] elements, CancellationToken cancellationToken)
+        {
+            foreach (var element in elements)
+            {
+                if (element.Condition.Evaluate(container))
+                {
+                    await element.Actions.Resolve(container).InvokeAsync(container, cancellationToken);
+                    return;
+                }
+            }
         }
     }
 }
