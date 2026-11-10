@@ -14,7 +14,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
     public sealed class FeedbackResolverGeneratorTests
     {
         [Fact]
-        public void StaticResolverResolvesNamedArgumentsAndInjectsContainerOnEachCall()
+        public void StaticResolverResolvesNamedArgumentsAndDefaultsToExecutionContainer()
         {
             var assembly = Compile("""
                 using HKFeedbackV2;
@@ -42,7 +42,9 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.Same(container, owner.GetField("Context")!.GetValue(null));
             Assert.Equal(2, owner.GetField("Calls")!.GetValue(null));
             Assert.True(resolver.GetType().IsDefined(typeof(SerializableAttribute)));
-            Assert.Equal(new[] { "label", "value" }, resolver.GetType()
+            Assert.IsType<DefaultContainer<IContainer>>(resolver.GetType()
+                .GetField("context", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(resolver));
+            Assert.Equal(new[] { "context", "label", "value" }, resolver.GetType()
                 .GetFields(BindingFlags.Instance | BindingFlags.NonPublic).Select(field => field.Name).OrderBy(name => name));
         }
 

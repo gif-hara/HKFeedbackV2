@@ -13,7 +13,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
     public sealed class FeedbackEvaluatorGeneratorTests
     {
         [Fact]
-        public void StaticEvaluatorResolvesNamedArgumentsAndInjectsContainerOnEachCall()
+        public void StaticEvaluatorResolvesNamedArgumentsAndDefaultsToExecutionContainer()
         {
             var assembly = Compile("""
                 using HKFeedbackV2;
@@ -41,7 +41,9 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.Same(container, owner.GetField("Context")!.GetValue(null));
             Assert.Equal(2, owner.GetField("Calls")!.GetValue(null));
             Assert.True(evaluator.GetType().IsDefined(typeof(SerializableAttribute)));
-            Assert.Equal(new[] { "minimum", "value" }, evaluator.GetType()
+            Assert.IsType<DefaultContainer<IContainer>>(evaluator.GetType()
+                .GetField("context", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(evaluator));
+            Assert.Equal(new[] { "context", "minimum", "value" }, evaluator.GetType()
                 .GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Select(field => field.Name).OrderBy(name => name));
         }
 

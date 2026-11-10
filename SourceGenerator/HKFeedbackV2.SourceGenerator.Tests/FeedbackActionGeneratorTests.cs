@@ -26,7 +26,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 .ToImmutableArray<MetadataReference>();
 
         [Fact]
-        public async Task StaticActionResolvesArgumentsAndInjectsExecutionContext()
+        public async Task StaticActionResolvesArgumentsAndDefaultsToExecutionContainer()
         {
             var assembly = Compile("""
                 using System.Threading;
@@ -48,6 +48,8 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                 }
                 """);
             var action = CreateAction(assembly, "Game.Effects+Actions+Run");
+            var contextField = action.GetType().GetField("context", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            Assert.IsType<DefaultContainer<IContainer>>(contextField.GetValue(action));
             var container = new Container();
             using var cancellation = new CancellationTokenSource();
             SetResolver(action, "value", new SerializeField<int>(42));
@@ -59,10 +61,14 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.Equal("hello", effects.GetField("Message")!.GetValue(null));
             Assert.Same(container, effects.GetField("Context")!.GetValue(null));
             Assert.Equal(cancellation.Token, effects.GetField("Token")!.GetValue(null));
-            Assert.Equal(2, action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Length);
-            Assert.Equal(new[] { "message", "value" }, action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+            Assert.Equal(new[] { "context", "message", "value" }, action.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
                 .Select(field => field.Name).OrderBy(name => name));
             Assert.True(action.GetType().IsDefined(typeof(SerializableAttribute)));
+
+            var replacement = new Container();
+            SetResolver(action, "context", new SerializeReference<IContainer>(replacement));
+            await action.InvokeAsync(container, cancellation.Token);
+            Assert.Same(replacement, effects.GetField("Context")!.GetValue(null));
         }
 
         [Theory]
@@ -109,7 +115,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             Assert.True(Assert.IsType<HKFeedbackV2.Evaluators.Constant>(conditionField.GetValue(action)).Evaluate(new Container()));
             Assert.Null(conditionsField.GetValue(action));
             Assert.IsType<SerializeField<int>>(action.GetType().GetField("amount", flags)!.GetValue(action));
-            Assert.Null(action.GetType().GetField("context", flags));
+            Assert.IsType<DefaultContainer<IContainer>>(action.GetType().GetField("context", flags)!.GetValue(action));
             Assert.Null(action.GetType().GetField("token", flags));
             var implementation = assembly.GetType("Condition")!;
             var truth = (IEvaluator)Activator.CreateInstance(implementation)!;

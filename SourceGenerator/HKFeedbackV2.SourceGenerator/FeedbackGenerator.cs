@@ -22,7 +22,7 @@ namespace HKFeedbackV2.SourceGenerator
         private const string ActionAttributeName = "HKFeedbackV2.FeedbackActionAttribute";
         private const string ResolverAttributeName = "HKFeedbackV2.FeedbackResolverAttribute";
         private const string EvaluatorAttributeName = "HKFeedbackV2.FeedbackEvaluatorAttribute";
-        private const string ContainerName = "HKFeedbackV2.IContainer";
+        private const string ContainerName = "global::HKFeedbackV2.IContainer";
         private const string EvaluatorName = "HKFeedbackV2.IEvaluator";
         private const string CancellationTokenName = "System.Threading.CancellationToken";
         private const string UniTaskName = "Cysharp.Threading.Tasks.UniTask";
@@ -302,11 +302,8 @@ namespace HKFeedbackV2.SourceGenerator
             return types;
         }
 
-        private static bool IsInjected(IParameterSymbol parameter, FeedbackKind kind)
-        {
-            var typeName = parameter.Type.ToDisplayString();
-            return typeName == ContainerName || (kind == FeedbackKind.Action && typeName == CancellationTokenName);
-        }
+        private static bool IsInjected(IParameterSymbol parameter, FeedbackKind kind) =>
+            kind == FeedbackKind.Action && parameter.Type.ToDisplayString() == CancellationTokenName;
 
         private static bool IsDirectEvaluator(ITypeSymbol type, FeedbackKind kind) => kind == FeedbackKind.Action &&
             (type.ToDisplayString() == EvaluatorName ||
@@ -439,7 +436,11 @@ namespace HKFeedbackV2.SourceGenerator
                 var fieldName = definition.ParameterFieldName(parameter);
                 RenderSerializeReferenceAttributes(writer);
                 writer.Line("[global::UnityEngine.InspectorName(" + SymbolDisplay.FormatLiteral(parameter.Name, true) + ")]");
-                if (IsDirectEvaluator(parameter.Type, definition.Kind))
+                if (typeName == ContainerName)
+                {
+                    writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.DefaultContainer<{typeName}>();");
+                }
+                else if (IsDirectEvaluator(parameter.Type, definition.Kind))
                 {
                     var defaultValue = parameter.Type is IArrayTypeSymbol ? DefaultValue(parameter)
                         : "new global::HKFeedbackV2.Evaluators.Constant(true)";
@@ -479,13 +480,9 @@ namespace HKFeedbackV2.SourceGenerator
             if (isAction) writer.Line("cancellationToken.ThrowIfCancellationRequested();");
 
             var arguments = string.Join(", ", method.Parameters.Select(p =>
-            {
-                var name = p.Type.ToDisplayString();
-                return name == ContainerName ? "container"
-                    : isAction && name == CancellationTokenName ? "cancellationToken"
+                IsInjected(p, definition.Kind) ? "cancellationToken"
                     : IsDirectEvaluator(p.Type, definition.Kind) ? "this.@" + definition.ParameterFieldName(p)
-                    : "this.@" + definition.ParameterFieldName(p) + ".Resolve(container)";
-            }));
+                    : "this.@" + definition.ParameterFieldName(p) + ".Resolve(container)"));
             var receiver = method.IsStatic ? TypeName(method.ContainingType)
                 : "this." + definition.TargetFieldName + ".Resolve(container)";
             var invocation = receiver + ".@" + method.Name + "(" + arguments + ")";
