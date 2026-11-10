@@ -44,5 +44,18 @@ namespace HKFeedbackV2
         {
             return UniTask.WaitUntil((container, condition), static (state) => state.condition.Evaluate(state.container), timing, cancellationToken);
         }
+
+        [FeedbackAction]
+        public static UniTask BranchAsync(IContainer container, IEvaluator condition, IAction[] trueActions, IAction[] falseActions, CancellationToken cancellationToken)
+        {
+            if (condition.Evaluate(container))
+            {
+                return trueActions.InvokeAsync(container, cancellationToken);
+            }
+            else
+            {
+                return falseActions.InvokeAsync(container, cancellationToken);
+            }
+        }
     }
 }
