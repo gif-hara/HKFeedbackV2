@@ -11,12 +11,6 @@ namespace HKFeedbackV2
             }
 
             [FeedbackAction]
-            public static void ToggleActive(UnityEngine.GameObject gameObject)
-            {
-                gameObject.SetActive(!gameObject.activeSelf);
-            }
-
-            [FeedbackAction]
             public static void SetName(UnityEngine.GameObject gameObject, string name)
             {
                 gameObject.name = name;
