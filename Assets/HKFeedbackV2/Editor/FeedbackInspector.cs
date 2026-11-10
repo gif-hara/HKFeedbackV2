@@ -40,7 +40,7 @@ namespace HKFeedbackV2.Editor
                 var index = root.IndexOf(field);
                 field.RemoveFromHierarchy();
                 row.Add(field);
-                row.Add(button);
+                // row.Add(button);
                 root.Insert(index, row);
             }
             return root;
