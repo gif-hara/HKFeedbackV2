@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81de66f8255f1d34e925eca2f895e60a, type: 3}
+  m_Name: ScriptableAction.Test
+  m_EditorClassIdentifier: HKFeedbackV2::HKFeedbackV2.Actions.ScriptableAction
+  isWait:
+    rid: 6292669106612338984
+  actions:
+  - rid: 6292669106612338988
+  references:
+    version: 2
+    RefIds:
+    - rid: 6292669106612338984
+      type: {class: 'SerializeField`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        value: 1
+    - rid: 6292669106612338988
+      type: {class: TestSceneController/Actions/TestArgumentAction, ns: HKFeedbackV2.Test, asm: Test}
+      data:
+        _TestSceneController:
+          rid: 6292669106612338989
+        hoge:
+          rid: 6292669106612338990
+        fuga:
+          rid: 6292669106612338991
+    - rid: 6292669106612338989
+      type: {class: 'Anonymous`1[[HKFeedbackV2.Test.TestSceneController, Test]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        canBeNull:
+          rid: 6292669106612338992
+    - rid: 6292669106612338990
+      type: {class: 'SerializeField`1[[System.Int32[], mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        value: 
+    - rid: 6292669106612338991
+      type: {class: 'SerializeField`1[[System.Single, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        value: 32
+    - rid: 6292669106612338992
+      type: {class: 'SerializeField`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+      data:
+        value: 0

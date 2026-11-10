@@ -492,7 +492,7 @@ MonoBehaviour:
         condition:
           rid: 6292669106612338966
         actions:
-          rid: 6292669106612338967
+          rid: 6292669106612338983
     - rid: 6292669106612338965
       type: {class: 'SerializeField`1[[System.Boolean, mscorlib]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
       data:
@@ -501,10 +501,10 @@ MonoBehaviour:
       type: {class: Constant, ns: HKFeedbackV2.Evaluators, asm: HKFeedbackV2}
       data:
         isTrue: 1
-    - rid: 6292669106612338967
-      type: {class: 'SerializeReference`1[[HKFeedbackV2.IAction[], HKFeedbackV2]]', ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
+    - rid: 6292669106612338983
+      type: {class: ScriptableObject, ns: HKFeedbackV2.Resolvers, asm: HKFeedbackV2}
       data:
-        value: []
+        scriptableAction: {fileID: 11400000, guid: b11c565a20e7570409298f87d792c84b, type: 2}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
