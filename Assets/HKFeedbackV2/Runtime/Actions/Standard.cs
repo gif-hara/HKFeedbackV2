@@ -26,5 +26,17 @@ namespace HKFeedbackV2
                 return UniTask.CompletedTask;
             }
         }
+
+        [FeedbackAction]
+        public static async UniTask YieldAsync(PlayerLoopTiming timing = PlayerLoopTiming.Update, CancellationToken cancellationToken = default)
+        {
+            await UniTask.Yield(timing, cancellationToken);
+        }
+
+        [FeedbackAction]
+        public static UniTask DelayAsync(float seconds, bool ignoreTimeScale = false, PlayerLoopTiming timing = PlayerLoopTiming.Update, CancellationToken cancellationToken = default, bool cancelImmediately = false)
+        {
+            return UniTask.Delay(System.TimeSpan.FromSeconds(seconds), ignoreTimeScale, timing, cancellationToken, cancelImmediately);
+        }
     }
 }
