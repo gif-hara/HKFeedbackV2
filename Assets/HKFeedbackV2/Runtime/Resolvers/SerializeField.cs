@@ -17,5 +17,10 @@ namespace HKFeedbackV2.Resolvers
         {
             this.value = value;
         }
+
+        public SerializeField()
+        {
+            this.value = default!;
+        }
     }
 }

@@ -18,5 +18,10 @@ namespace HKFeedbackV2.Resolvers
         {
             this.scriptableAction = scriptableAction;
         }
+
+        public ScriptableObject()
+        {
+            this.scriptableAction = null!;
+        }
     }
 }

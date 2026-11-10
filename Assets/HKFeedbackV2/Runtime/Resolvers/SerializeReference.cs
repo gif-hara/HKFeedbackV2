@@ -20,5 +20,10 @@ namespace HKFeedbackV2.Resolvers
         {
             this.value = value;
         }
+
+        public SerializeReference()
+        {
+            this.value = default!;
+        }
     }
 }
