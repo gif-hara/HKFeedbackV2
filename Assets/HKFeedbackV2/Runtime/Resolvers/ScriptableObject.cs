@@ -11,7 +11,7 @@ namespace HKFeedbackV2.Resolvers
 
         public IAction[] Resolve(IContainer container)
         {
-            return scriptableAction.Actions;
+            return scriptableAction.ActionList;
         }
 
         public ScriptableObject(ScriptableAction scriptableAction)

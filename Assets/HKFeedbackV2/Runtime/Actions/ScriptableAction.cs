@@ -6,7 +6,7 @@ using UnityEngine;
 namespace HKFeedbackV2.Actions
 {
     [CreateAssetMenu(fileName = "ScriptableAction", menuName = "HKFeedbackV2/ScriptableAction")]
-    public sealed class ScriptableAction : UnityEngine.ScriptableObject, IAction
+    public sealed partial class ScriptableAction : UnityEngine.ScriptableObject, IAction
     {
         [SerializeReference]
 #if HK_FEEDBACK_V2_SERIALIZE_REFERENCE_EXTENSIONS
@@ -20,8 +20,9 @@ namespace HKFeedbackV2.Actions
 #endif
         private IAction[] actions = null!;
 
-        public IAction[] Actions => actions;
+        public IAction[] ActionList => actions;
 
+        [FeedbackAction]
         public UniTask InvokeAsync(IContainer container, CancellationToken cancellationToken)
         {
             if (!isWait.Resolve(container))
