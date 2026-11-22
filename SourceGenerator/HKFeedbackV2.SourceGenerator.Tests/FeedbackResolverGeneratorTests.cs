@@ -14,6 +14,40 @@ namespace HKFeedbackV2.SourceGenerator.Tests
     public sealed class FeedbackResolverGeneratorTests
     {
         [Fact]
+        public void NamedPropertyGettersResolveTheirCurrentValue()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public partial class Stats
+                {
+                    public static string Label
+                    {
+                        [FeedbackResolver] get => "ready";
+                    }
+
+                    public int Resolve
+                    {
+                        [FeedbackResolver] get;
+                        set;
+                    }
+                }
+                """);
+            var owner = assembly.GetType("Stats")!;
+            var target = Activator.CreateInstance(owner)!;
+            var property = owner.GetProperty("Resolve")!;
+            var container = new Container();
+            container.Register(ContainerKey.Anonymous, target);
+
+            var label = CreateResolver<string>(assembly, "Stats+Resolvers+Label");
+            var value = CreateResolver<int>(assembly, "Stats+Resolvers+Resolve");
+            Assert.Equal("ready", label.Resolve(container));
+            property.SetValue(target, 10);
+            Assert.Equal(10, value.Resolve(container));
+            property.SetValue(target, 20);
+            Assert.Equal(20, value.Resolve(container));
+        }
+
+        [Fact]
         public void StaticResolverResolvesNamedArgumentsAndDefaultsToExecutionContainer()
         {
             var assembly = Compile("""

@@ -13,6 +13,38 @@ namespace HKFeedbackV2.SourceGenerator.Tests
     public sealed class FeedbackEvaluatorGeneratorTests
     {
         [Fact]
+        public void NamedBoolPropertyGettersEvaluateTheirCurrentValue()
+        {
+            var assembly = Compile("""
+                using HKFeedbackV2;
+                public partial class Conditions
+                {
+                    public int Value;
+                    private static bool Always
+                    {
+                        [FeedbackEvaluator] get { return true; }
+                    }
+
+                    private bool Evaluate
+                    {
+                        [FeedbackEvaluator] get => Value > 0;
+                    }
+                }
+                """);
+            var owner = assembly.GetType("Conditions")!;
+            var target = Activator.CreateInstance(owner)!;
+            var container = new Container();
+            container.Register(ContainerKey.Anonymous, target);
+
+            var always = CreateEvaluator(assembly, "Conditions+Evaluators+Always");
+            var condition = CreateEvaluator(assembly, "Conditions+Evaluators+Evaluate");
+            Assert.True(always.Evaluate(container));
+            Assert.False(condition.Evaluate(container));
+            owner.GetField("Value")!.SetValue(target, 1);
+            Assert.True(condition.Evaluate(container));
+        }
+
+        [Fact]
         public void StaticEvaluatorResolvesNamedArgumentsAndDefaultsToExecutionContainer()
         {
             var assembly = Compile("""

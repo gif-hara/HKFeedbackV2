@@ -97,11 +97,13 @@ namespace HKFeedbackV2.SourceGenerator
         {
             var attributeName = AttributeName(kind);
             var methods = context.SyntaxProvider.CreateSyntaxProvider(
-                static (node, _) => node is MethodDeclarationSyntax method && method.AttributeLists.Count != 0,
+                (node, _) => node is MethodDeclarationSyntax method && method.AttributeLists.Count != 0 ||
+                    kind != FeedbackKind.Action && node is AccessorDeclarationSyntax accessor &&
+                    accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.AttributeLists.Count != 0,
                 (syntaxContext, cancellationToken) =>
                 {
                     var method = syntaxContext.SemanticModel.GetDeclaredSymbol(
-                        (MethodDeclarationSyntax)syntaxContext.Node, cancellationToken);
+                        syntaxContext.Node, cancellationToken) as IMethodSymbol;
                     return method != null && method.GetAttributes().Any(a =>
                         a.AttributeClass?.ToDisplayString() == attributeName) ? method : null;
                 }).Where(static method => method != null)
@@ -141,7 +143,7 @@ namespace HKFeedbackV2.SourceGenerator
                 var location = attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation()
                     ?? method.Locations.FirstOrDefault();
 
-                var reason = ValidateMethod(method);
+                var reason = ValidateMethod(method, kind);
                 if (reason != null)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(methodRule, location,
@@ -248,7 +250,7 @@ namespace HKFeedbackV2.SourceGenerator
             }
         }
 
-        private static string? ValidateMethod(IMethodSymbol method)
+        private static string? ValidateMethod(IMethodSymbol method, FeedbackKind kind)
         {
             if (method.IsGenericMethod)
             {
@@ -265,11 +267,15 @@ namespace HKFeedbackV2.SourceGenerator
                     return "generic containing types are unsupported";
                 }
             }
+            var supportsGetter = kind != FeedbackKind.Action && method.MethodKind == MethodKind.PropertyGet &&
+                method.AssociatedSymbol is IPropertySymbol { IsIndexer: false, CanBeReferencedByName: true };
             if (method.IsAbstract || method.IsExtern ||
                 (method.IsPartialDefinition && method.PartialImplementationPart == null) ||
-                method.MethodKind != MethodKind.Ordinary)
+                (method.MethodKind != MethodKind.Ordinary && !supportsGetter))
             {
-                return "a callable, implemented ordinary method is required";
+                return kind == FeedbackKind.Action
+                    ? "a callable, implemented ordinary method is required"
+                    : "a callable, implemented ordinary method or named property getter is required";
             }
             if (method.ReturnsByRef || method.ReturnsByRefReadonly)
             {
@@ -309,12 +315,17 @@ namespace HKFeedbackV2.SourceGenerator
             (type.ToDisplayString() == EvaluatorName ||
                 type is IArrayTypeSymbol array && array.ElementType.ToDisplayString() == EvaluatorName);
 
-        private static string GeneratedName(IMethodSymbol method, string attributeName) => method.ContainingType.GetMembers(method.Name)
-            .OfType<IMethodSymbol>()
-            .Count(candidate => candidate.GetAttributes().Any(attribute =>
-                attribute.AttributeClass?.ToDisplayString() == attributeName)) <= 1
-                ? method.Name
-                : SignatureName(method);
+        private static string GeneratedName(IMethodSymbol method, string attributeName)
+        {
+            if (method.AssociatedSymbol is IPropertySymbol property) return property.Name;
+
+            return method.ContainingType.GetMembers(method.Name)
+                .OfType<IMethodSymbol>()
+                .Count(candidate => candidate.GetAttributes().Any(attribute =>
+                    attribute.AttributeClass?.ToDisplayString() == attributeName)) <= 1
+                    ? method.Name
+                    : SignatureName(method);
+        }
 
         private static string SignatureName(IMethodSymbol method) => method.Parameters.Length == 0
             ? method.Name
@@ -485,7 +496,9 @@ namespace HKFeedbackV2.SourceGenerator
                     : "this.@" + definition.ParameterFieldName(p) + ".Resolve(container)"));
             var receiver = method.IsStatic ? TypeName(method.ContainingType)
                 : "this." + definition.TargetFieldName + ".Resolve(container)";
-            var invocation = receiver + ".@" + method.Name + "(" + arguments + ")";
+            var invocation = method.AssociatedSymbol is IPropertySymbol property
+                ? receiver + ".@" + property.Name
+                : receiver + ".@" + method.Name + "(" + arguments + ")";
 
             if (method.ReturnsVoid)
             {
