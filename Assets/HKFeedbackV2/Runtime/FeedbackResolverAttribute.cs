@@ -2,7 +2,7 @@ using System;
 
 namespace HKFeedbackV2
 {
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
+    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
     public sealed class FeedbackResolverAttribute : Attribute
     {
     }
