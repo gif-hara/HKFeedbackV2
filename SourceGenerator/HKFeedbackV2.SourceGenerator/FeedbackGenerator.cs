@@ -96,25 +96,29 @@ namespace HKFeedbackV2.SourceGenerator
         public static void Initialize(IncrementalGeneratorInitializationContext context, FeedbackKind kind)
         {
             var attributeName = AttributeName(kind);
-            var methods = context.SyntaxProvider.CreateSyntaxProvider(
-                (node, _) => node is MethodDeclarationSyntax method && method.AttributeLists.Count != 0 ||
-                    kind != FeedbackKind.Action && node is AccessorDeclarationSyntax accessor &&
-                    accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.AttributeLists.Count != 0,
+            var symbols = context.SyntaxProvider.CreateSyntaxProvider(
+                (node, _) => node switch
+                {
+                    MethodDeclarationSyntax method => method.AttributeLists.Count != 0,
+                    PropertyDeclarationSyntax property => kind != FeedbackKind.Action && property.AttributeLists.Count != 0,
+                    AccessorDeclarationSyntax accessor => kind != FeedbackKind.Action &&
+                        accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.AttributeLists.Count != 0,
+                    _ => false
+                },
                 (syntaxContext, cancellationToken) =>
                 {
-                    var method = syntaxContext.SemanticModel.GetDeclaredSymbol(
-                        syntaxContext.Node, cancellationToken) as IMethodSymbol;
-                    return method != null && method.GetAttributes().Any(a =>
-                        a.AttributeClass?.ToDisplayString() == attributeName) ? method : null;
-                }).Where(static method => method != null)
-                .Select(static (method, _) => method!);
+                    var symbol = syntaxContext.SemanticModel.GetDeclaredSymbol(syntaxContext.Node, cancellationToken);
+                    return symbol != null && symbol.GetAttributes().Any(a =>
+                        a.AttributeClass?.ToDisplayString() == attributeName) ? symbol : null;
+                }).Where(static symbol => symbol != null)
+                .Select(static (symbol, _) => symbol!);
 
-            context.RegisterSourceOutput(methods.Collect(),
-                (output, collectedMethods) => Generate(output, collectedMethods, kind));
+            context.RegisterSourceOutput(symbols.Collect(),
+                (output, collectedSymbols) => Generate(output, collectedSymbols, kind));
         }
 
         private static void Generate(SourceProductionContext context,
-            ImmutableArray<IMethodSymbol> methods, FeedbackKind kind)
+            ImmutableArray<ISymbol> symbols, FeedbackKind kind)
         {
             var candidates = new List<FeedbackDefinition>();
             var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
@@ -130,18 +134,25 @@ namespace HKFeedbackV2.SourceGenerator
                 _ => (UnsupportedMethod, UnsupportedReturn, DuplicateName, UnsupportedParameter, MissingPartial)
             };
 
-            foreach (var method in methods)
+            foreach (var symbol in symbols)
             {
                 context.CancellationToken.ThrowIfCancellationRequested();
+                var attribute = symbol.GetAttributes().First(a =>
+                    a.AttributeClass?.ToDisplayString() == attributeName);
+                var location = attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation()
+                    ?? symbol.Locations.FirstOrDefault();
+
+                var method = symbol is IPropertySymbol property ? property.GetMethod : (IMethodSymbol)symbol;
+                if (method == null)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(methodRule, location,
+                        symbol.ToDisplayString(), "the property must have a getter"));
+                    continue;
+                }
                 if (!seen.Add(method))
                 {
                     continue;
                 }
-
-                var attribute = method.GetAttributes().First(a =>
-                    a.AttributeClass?.ToDisplayString() == attributeName);
-                var location = attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation()
-                    ?? method.Locations.FirstOrDefault();
 
                 var reason = ValidateMethod(method, kind);
                 if (reason != null)

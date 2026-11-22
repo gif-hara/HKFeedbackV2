@@ -25,10 +25,8 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                         [FeedbackEvaluator] get { return true; }
                     }
 
-                    private bool Evaluate
-                    {
-                        [FeedbackEvaluator] get => Value > 0;
-                    }
+                    [FeedbackEvaluator]
+                    private bool Evaluate => Value > 0;
                 }
                 """);
             var owner = assembly.GetType("Conditions")!;
@@ -275,6 +273,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         [Theory]
         [InlineData("[FeedbackEvaluator] public static bool Check<T>() => true;", "HKFSG013")]
         [InlineData("[FeedbackEvaluator] public abstract bool Check();", "HKFSG013")]
+        [InlineData("[FeedbackEvaluator] public int Count => 1;", "HKFSG014")]
         [InlineData("private static bool value; [FeedbackEvaluator] public static ref bool Check() => ref value;", "HKFSG013")]
         [InlineData("[FeedbackEvaluator] public static bool Check(ref int value) => value > 0;", "HKFSG016")]
         [InlineData("[FeedbackEvaluator] public static bool Check(in int value) => value > 0;", "HKFSG016")]

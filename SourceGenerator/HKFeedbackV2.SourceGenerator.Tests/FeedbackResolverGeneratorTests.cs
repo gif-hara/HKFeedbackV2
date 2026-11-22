@@ -25,6 +25,10 @@ namespace HKFeedbackV2.SourceGenerator.Tests
                         [FeedbackResolver] get => "ready";
                     }
 
+                    [FeedbackResolver]
+                    private int CurrentValue => Resolve;
+
+                    [FeedbackResolver]
                     public int Resolve
                     {
                         [FeedbackResolver] get;
@@ -39,12 +43,15 @@ namespace HKFeedbackV2.SourceGenerator.Tests
             container.Register(ContainerKey.Anonymous, target);
 
             var label = CreateResolver<string>(assembly, "Stats+Resolvers+Label");
+            var currentValue = CreateResolver<int>(assembly, "Stats+Resolvers+CurrentValue");
             var value = CreateResolver<int>(assembly, "Stats+Resolvers+Resolve");
             Assert.Equal("ready", label.Resolve(container));
             property.SetValue(target, 10);
             Assert.Equal(10, value.Resolve(container));
+            Assert.Equal(10, currentValue.Resolve(container));
             property.SetValue(target, 20);
             Assert.Equal(20, value.Resolve(container));
+            Assert.Equal(20, currentValue.Resolve(container));
         }
 
         [Fact]
@@ -339,6 +346,7 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         [InlineData("[FeedbackResolver] public static void Read() { }", "HKFSG009")]
         [InlineData("[FeedbackResolver] public static int Read<T>() => 0;", "HKFSG008")]
         [InlineData("[FeedbackResolver] public abstract int Read();", "HKFSG008")]
+        [InlineData("[FeedbackResolver] public int WriteOnly { set { } }", "HKFSG008")]
         [InlineData("private static int value; [FeedbackResolver] public static ref int Read() => ref value;", "HKFSG008")]
         [InlineData("[FeedbackResolver] public static System.Span<int> Read() => default;", "HKFSG009")]
         [InlineData("[FeedbackResolver] public static unsafe int* Read() => null;", "HKFSG009")]
