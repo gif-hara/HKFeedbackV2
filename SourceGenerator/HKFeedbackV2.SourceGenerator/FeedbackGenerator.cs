@@ -322,9 +322,9 @@ namespace HKFeedbackV2.SourceGenerator
         private static bool IsInjected(IParameterSymbol parameter, FeedbackKind kind) =>
             kind == FeedbackKind.Action && parameter.Type.ToDisplayString() == CancellationTokenName;
 
-        private static bool IsDirectEvaluator(ITypeSymbol type, FeedbackKind kind) => kind == FeedbackKind.Action &&
-            (type.ToDisplayString() == EvaluatorName ||
-                type is IArrayTypeSymbol array && array.ElementType.ToDisplayString() == EvaluatorName);
+        private static bool IsDirectEvaluator(ITypeSymbol type) =>
+            type.ToDisplayString() == EvaluatorName ||
+            type is IArrayTypeSymbol array && array.ElementType.ToDisplayString() == EvaluatorName;
 
         private static string GeneratedName(IMethodSymbol method, string attributeName)
         {
@@ -462,7 +462,7 @@ namespace HKFeedbackV2.SourceGenerator
                 {
                     writer.Line($"private global::HKFeedbackV2.IResolver<{typeName}> @{fieldName} = new global::HKFeedbackV2.Resolvers.DefaultContainer<{typeName}>();");
                 }
-                else if (IsDirectEvaluator(parameter.Type, definition.Kind))
+                else if (IsDirectEvaluator(parameter.Type))
                 {
                     var defaultValue = parameter.Type is IArrayTypeSymbol ? DefaultValue(parameter)
                         : "new global::HKFeedbackV2.Evaluators.Constant(true)";
@@ -503,7 +503,7 @@ namespace HKFeedbackV2.SourceGenerator
 
             var arguments = string.Join(", ", method.Parameters.Select(p =>
                 IsInjected(p, definition.Kind) ? "cancellationToken"
-                    : IsDirectEvaluator(p.Type, definition.Kind) ? "this.@" + definition.ParameterFieldName(p)
+                    : IsDirectEvaluator(p.Type) ? "this.@" + definition.ParameterFieldName(p)
                     : "this.@" + definition.ParameterFieldName(p) + ".Resolve(container)"));
             var receiver = method.IsStatic ? TypeName(method.ContainingType)
                 : "this." + definition.TargetFieldName + ".Resolve(container)";

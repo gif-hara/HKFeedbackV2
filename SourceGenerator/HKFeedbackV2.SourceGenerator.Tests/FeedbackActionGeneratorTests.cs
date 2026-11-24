@@ -345,26 +345,52 @@ namespace HKFeedbackV2.SourceGenerator.Tests
         }
 
         [Fact]
-        public void EvaluatorFieldsAreDirectInActionsAndRemainResolversInOtherGenerators()
+        public async Task EvaluatorFieldsAreDirectInAllGenerators()
         {
             var assembly = FeedbackGeneratorTestDriver.Compile("""
                 using HKFeedbackV2;
                 public static partial class Effects
                 {
-                    [FeedbackAction] private static void Run(IEvaluator condition, IEvaluator[] conditions) { }
+                    public static IEvaluator ReceivedCondition;
+                    public static IEvaluator[] ReceivedConditions;
+
+                    [FeedbackAction]
+                    private static void Run(IEvaluator condition, IEvaluator[] conditions) => Check(condition, conditions);
                     [FeedbackResolver, FeedbackEvaluator]
-                    private static bool Check(IEvaluator condition, IEvaluator[] conditions) => true;
+                    private static bool Check(IEvaluator condition, IEvaluator[] conditions)
+                    {
+                        ReceivedCondition = condition;
+                        ReceivedConditions = conditions;
+                        return true;
+                    }
                 }
                 """);
             var flags = BindingFlags.NonPublic | BindingFlags.Instance;
-            var action = Activator.CreateInstance(assembly.GetType("Effects+Actions+Run")!)!;
-            Assert.Equal(typeof(IEvaluator), action.GetType().GetField("condition", flags)!.FieldType);
-            Assert.Equal(typeof(IEvaluator[]), action.GetType().GetField("conditions", flags)!.FieldType);
-            foreach (var name in new[] { "Effects+Resolvers+Check", "Effects+Evaluators+Check" })
+            var owner = assembly.GetType("Effects")!;
+            var receivedCondition = owner.GetField("ReceivedCondition")!;
+            var receivedConditions = owner.GetField("ReceivedConditions")!;
+            var container = new Container();
+            var replacement = new HKFeedbackV2.Evaluators.Constant(false);
+            var replacements = new IEvaluator[] { replacement };
+            foreach (var name in new[] { "Effects+Actions+Run", "Effects+Resolvers+Check", "Effects+Evaluators+Check" })
             {
                 var instance = Activator.CreateInstance(assembly.GetType(name)!)!;
-                foreach (var field in instance.GetType().GetFields(flags))
-                    Assert.Equal(typeof(SerializeField<>), field.GetValue(instance)!.GetType().GetGenericTypeDefinition());
+                var condition = instance.GetType().GetField("condition", flags)!;
+                var conditions = instance.GetType().GetField("conditions", flags)!;
+                Assert.Equal(typeof(IEvaluator), condition.FieldType);
+                Assert.Equal(typeof(IEvaluator[]), conditions.FieldType);
+                Assert.True(Assert.IsType<HKFeedbackV2.Evaluators.Constant>(condition.GetValue(instance)).Evaluate(container));
+                condition.SetValue(instance, replacement);
+                conditions.SetValue(instance, replacements);
+
+                receivedCondition.SetValue(null, null);
+                receivedConditions.SetValue(null, null);
+                if (instance is IAction action) await action.InvokeAsync(container, default);
+                else if (instance is IResolver<bool> resolver) Assert.True(resolver.Resolve(container));
+                else if (instance is IEvaluator evaluator) Assert.True(evaluator.Evaluate(container));
+
+                Assert.Same(replacement, receivedCondition.GetValue(null));
+                Assert.Same(replacements, receivedConditions.GetValue(null));
             }
         }
 
