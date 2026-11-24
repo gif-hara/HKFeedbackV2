@@ -13,6 +13,10 @@ namespace HKFeedbackV2
 
         public IReadOnlyList<IAction> Feedbacks => feedbacks;
 
+        public FeedbackSequence()
+        {
+        }
+
         public FeedbackSequence(IAction[] feedbacks)
         {
             this.feedbacks = feedbacks;
