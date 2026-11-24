@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class Graphic
         {
             [FeedbackAction]
+            public static void RegisterGraphic(IContainer container, RegisterElement<UnityEngine.UI.Graphic>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void SetEnabled(UnityEngine.UI.Graphic graphic, bool isEnabled)
             {
                 graphic.enabled = isEnabled;

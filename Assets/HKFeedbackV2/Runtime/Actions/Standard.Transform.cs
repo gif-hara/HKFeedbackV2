@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class Transform
         {
             [FeedbackAction]
+            public static void RegisterTransform(IContainer container, RegisterElement<UnityEngine.Transform>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void SetPosition(UnityEngine.Transform transform, UnityEngine.Vector3 position)
             {
                 transform.position = position;

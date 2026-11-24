@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class Rigidbody2D
         {
             [FeedbackAction]
+            public static void RegisterRigidbody2D(IContainer container, RegisterElement<UnityEngine.Rigidbody2D>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void AddForce(
                 UnityEngine.Rigidbody2D rigidbody,
                 UnityEngine.Vector2 force,

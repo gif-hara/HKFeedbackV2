@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class CanvasGroup
         {
             [FeedbackAction]
+            public static void RegisterCanvasGroup(IContainer container, RegisterElement<UnityEngine.CanvasGroup>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void SetAlpha(UnityEngine.CanvasGroup canvasGroup, float alpha)
             {
                 canvasGroup.alpha = alpha;

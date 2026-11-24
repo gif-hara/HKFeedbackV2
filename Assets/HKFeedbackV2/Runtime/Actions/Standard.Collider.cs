@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class Collider
         {
             [FeedbackAction]
+            public static void RegisterCollider(IContainer container, RegisterElement<UnityEngine.Collider>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void SetEnabled(UnityEngine.Collider collider, bool isEnabled)
             {
                 collider.enabled = isEnabled;

@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class ParticleSystem
         {
             [FeedbackAction]
+            public static void RegisterParticleSystem(IContainer container, RegisterElement<UnityEngine.ParticleSystem>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void Play(UnityEngine.ParticleSystem particleSystem, bool withChildren = true)
             {
                 particleSystem.Play(withChildren);

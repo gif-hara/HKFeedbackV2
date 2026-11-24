@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class Renderer
         {
             [FeedbackAction]
+            public static void RegisterRenderer(IContainer container, RegisterElement<UnityEngine.Renderer>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void SetEnabled(UnityEngine.Renderer renderer, bool isEnabled)
             {
                 renderer.enabled = isEnabled;

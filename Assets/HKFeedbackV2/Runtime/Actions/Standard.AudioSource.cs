@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class AudioSource
         {
             [FeedbackAction]
+            public static void RegisterAudioSource(IContainer container, RegisterElement<UnityEngine.AudioSource>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void Play(UnityEngine.AudioSource audioSource)
             {
                 audioSource.Play();

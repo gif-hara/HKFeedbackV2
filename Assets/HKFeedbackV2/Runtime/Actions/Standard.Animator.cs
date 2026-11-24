@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class Animator
         {
             [FeedbackAction]
+            public static void RegisterAnimator(IContainer container, RegisterElement<UnityEngine.Animator>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void Play(
                 UnityEngine.Animator animator,
                 string stateName,

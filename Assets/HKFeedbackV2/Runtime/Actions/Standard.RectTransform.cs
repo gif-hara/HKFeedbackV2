@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class RectTransform
         {
             [FeedbackAction]
+            public static void RegisterRectTransform(IContainer container, RegisterElement<UnityEngine.RectTransform>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void SetAnchoredPosition(UnityEngine.RectTransform rectTransform, UnityEngine.Vector2 anchoredPosition)
             {
                 rectTransform.anchoredPosition = anchoredPosition;

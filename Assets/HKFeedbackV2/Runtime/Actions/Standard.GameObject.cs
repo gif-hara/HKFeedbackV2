@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class GameObject
         {
             [FeedbackAction]
+            public static void RegisterGameObject(IContainer container, RegisterElement<UnityEngine.GameObject>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void SetActive(UnityEngine.GameObject gameObject, bool isActive)
             {
                 gameObject.SetActive(isActive);

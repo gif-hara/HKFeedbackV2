@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class Camera
         {
             [FeedbackAction]
+            public static void RegisterCamera(IContainer container, RegisterElement<UnityEngine.Camera>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void SetEnabled(UnityEngine.Camera camera, bool isEnabled)
             {
                 camera.enabled = isEnabled;

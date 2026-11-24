@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class TextMeshPro
         {
             [FeedbackAction]
+            public static void RegisterTextMeshPro(IContainer container, RegisterElement<TMPro.TMP_Text>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void SetText(TMPro.TMP_Text textMeshPro, string text)
             {
                 textMeshPro.text = text;

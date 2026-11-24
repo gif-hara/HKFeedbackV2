@@ -5,6 +5,12 @@ namespace HKFeedbackV2
         public static partial class Light
         {
             [FeedbackAction]
+            public static void RegisterLight(IContainer container, RegisterElement<UnityEngine.Light>[] elements)
+            {
+                RegisterTargets(container, elements);
+            }
+
+            [FeedbackAction]
             public static void SetEnabled(UnityEngine.Light light, bool isEnabled)
             {
                 light.enabled = isEnabled;
